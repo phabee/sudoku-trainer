@@ -2,6 +2,7 @@
   "name": "sudoku-trainer-tests",
   "version": "1.0.0",
   "private": true,
+  "license": "MIT",
   "description": "Tests und Benchmark für den Sudoku-Trainer (index.html)",
   "scripts": {
     "test": "node --test",

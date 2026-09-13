@@ -70,4 +70,4 @@ npm run bench      # Trefferquote und Wartezeit der Erzeugung pro Stufe
 
 ## Lizenz und Herkunft
 
-Eigenentwicklung ohne Fremdcode und ohne externe Bibliotheken. Die Technikbezeichnungen folgen der gängigen Sudoku-Literatur.
+Dieses Projekt steht unter der [MIT-Lizenz](LICENSE). Eigenentwicklung ohne Fremdcode und ohne externe Bibliotheken in der App selbst; die Technikbezeichnungen folgen der gängigen Sudoku-Literatur. Die Tests verwenden [jsdom](https://github.com/jsdom/jsdom) (MIT-Lizenz) als reine Entwicklungsabhängigkeit, die nicht mit der App ausgeliefert wird.
