@@ -1,0 +1,15 @@
+{
+  "name": "sudoku-trainer-tests",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tests und Benchmark für den Sudoku-Trainer (index.html)",
+  "scripts": {
+    "test": "node --test",
+    "test:engine": "node --test engine.test.js",
+    "test:ui": "node --test ui.test.js",
+    "bench": "node bench.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}

@@ -1,0 +1,1413 @@
+<!DOCTYPE html>
+<html lang="de-CH">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sudoku-Trainer</title>
+<style>
+:root{
+  --bg:#f3f4f6; --panel:#ffffff; --text:#1f2430; --muted:#6b7280; --border:#c9d0da; --thick:#1f2430;
+  --given:#111827; --user:#1d4ed8; --peer:#eef2ff; --same:#dbeafe; --region:#f1f5f9;
+  --hint:#fef3c7; --place:#bbf7d0; --wrong:#fecaca; --elim:#dc2626; --accent:#2563eb; --accent-text:#fff;
+  --ok:#15803d; --warn:#b45309; --err:#dc2626; --btn:#f9fafb; --btn-border:#d1d5db; --sel:#2563eb;
+  --cand:#4b5563; --tab-active:#2563eb;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#111827; --panel:#1f2937; --text:#e5e7eb; --muted:#9ca3af; --border:#4b5563; --thick:#e5e7eb;
+    --given:#f9fafb; --user:#93c5fd; --peer:#1e293b; --same:#1e3a8a; --region:#263244;
+    --hint:#78350f; --place:#14532d; --wrong:#7f1d1d; --elim:#f87171; --accent:#3b82f6; --accent-text:#fff;
+    --ok:#4ade80; --warn:#fbbf24; --err:#f87171; --btn:#374151; --btn-border:#4b5563; --sel:#60a5fa; --cand:#cbd5e1;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);line-height:1.4}
+header{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.55rem 1rem;background:var(--panel);border-bottom:1px solid var(--border);flex-wrap:wrap}
+header h1{font-size:1.25rem;margin:0}
+.brand{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.badge{display:inline-block;font-size:.72rem;padding:.15rem .5rem;border-radius:999px;background:var(--region);border:1px solid var(--border);color:var(--muted)}
+.badge.lvl{background:var(--same);color:var(--text)}
+.timer{font-variant-numeric:tabular-nums;color:var(--muted)}
+main{display:grid;grid-template-columns:minmax(300px,580px) minmax(300px,1fr);gap:1rem;padding:1rem;max-width:1250px;margin:0 auto;align-items:start}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.board-col{display:flex;flex-direction:column;gap:.7rem}
+#grid{display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);aspect-ratio:1;width:100%;max-width:580px;border:3px solid var(--thick);background:var(--panel);user-select:none;touch-action:manipulation}
+.cell{position:relative;border-right:1px solid var(--border);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:clamp(15px,3.7vmin,30px);background:var(--panel)}
+.cell.br{border-right:2px solid var(--thick)} .cell.bb{border-bottom:2px solid var(--thick)}
+.cell:nth-child(9n){border-right:none} .cell:nth-child(n+73){border-bottom:none}
+.cell .val{position:relative;z-index:1}
+.cell.given .val{color:var(--given);font-weight:600}
+.cell:not(.given) .val{color:var(--user)}
+.cell .val.preview{color:var(--ok);font-weight:700;opacity:.85}
+.cands{position:absolute;inset:0;display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(3,1fr);font-size:clamp(7px,1.35vmin,11px);color:var(--cand);pointer-events:none}
+.cand{display:flex;align-items:center;justify-content:center;visibility:hidden;line-height:1}
+.cand.on{visibility:visible}
+.cand.elim{visibility:visible;color:var(--elim);font-weight:800;text-decoration:line-through}
+.cand.hl{visibility:visible;font-weight:800;color:var(--accent)}
+.cell.peer{background:var(--peer)}
+.cell.region{background:var(--region)}
+.cell.same{background:var(--same)}
+.cell.hint{background:var(--hint)}
+.cell.place{background:var(--place)}
+.cell.wrong{background:var(--wrong)}
+.cell.conflict .val{color:var(--err)!important}
+.cell.sel{outline:3px solid var(--sel);outline-offset:-3px;z-index:2}
+.cell.hl-digit .val{text-decoration:underline}
+.numpad{display:grid;grid-template-columns:repeat(9,1fr);gap:.35rem;max-width:580px}
+.numpad button{position:relative;font-size:1.25rem;padding:.55rem 0;background:var(--btn);border:1px solid var(--btn-border);border-radius:.4rem;color:var(--text);cursor:pointer}
+.numpad button .cnt{position:absolute;right:.25rem;bottom:.1rem;font-size:.6rem;color:var(--muted)}
+.numpad button.done{opacity:.35}
+.numpad button.pencil-on{background:var(--hint)}
+.toolbar{display:flex;flex-wrap:wrap;gap:.4rem;max-width:580px}
+button,.btn{font:inherit;font-size:.9rem;padding:.4rem .7rem;background:var(--btn);border:1px solid var(--btn-border);border-radius:.4rem;color:var(--text);cursor:pointer}
+button:hover{filter:brightness(.96)}
+button:disabled{opacity:.5;cursor:default}
+button.primary{background:var(--accent);color:var(--accent-text);border-color:var(--accent)}
+button.toggle.active{background:var(--hint);border-color:var(--warn)}
+button.small{font-size:.8rem;padding:.25rem .5rem}
+.status{min-height:1.5rem;font-size:.9rem;color:var(--muted);max-width:580px}
+.status.ok{color:var(--ok)} .status.warn{color:var(--warn)} .status.err{color:var(--err)}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:.6rem;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--border);overflow-x:auto}
+.tab{flex:1;background:none;border:none;border-bottom:3px solid transparent;border-radius:0;padding:.6rem .5rem;color:var(--muted);white-space:nowrap}
+.tab.active{color:var(--text);border-bottom-color:var(--tab-active);font-weight:600}
+.tabpane{display:none;padding:.9rem}
+.tabpane.active{display:block}
+.card{border:1px solid var(--border);border-radius:.5rem;padding:.7rem .8rem;margin-bottom:.8rem}
+.card h3{margin:0 0 .5rem 0;font-size:.95rem}
+.card p{margin:.3rem 0;font-size:.9rem}
+.row{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.35rem 0}
+.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:.35rem}
+.levels label{display:flex;gap:.35rem;align-items:center;font-size:.85rem;border:1px solid var(--border);border-radius:.4rem;padding:.3rem .45rem;cursor:pointer}
+.levels label.sel{background:var(--same);border-color:var(--accent)}
+.muted{color:var(--muted);font-size:.85rem}
+textarea,input[type=text]{font:inherit;font-family:ui-monospace,Consolas,monospace;font-size:.85rem;width:100%;padding:.4rem;border:1px solid var(--border);border-radius:.4rem;background:var(--bg);color:var(--text)}
+.hintbox{background:var(--region);border-radius:.5rem;padding:.7rem .8rem;font-size:.92rem;min-height:3rem}
+.hintbox .lvl{font-size:.75rem;color:var(--muted);margin-bottom:.3rem}
+.hintbox .tech{font-weight:600}
+.hintbox.error{border-left:4px solid var(--err)}
+.hintbox.ok{border-left:4px solid var(--ok)}
+.ladder{list-style:none;padding:0;margin:.4rem 0;font-size:.85rem}
+.ladder li{padding:.25rem .5rem;border-left:3px solid var(--border);margin-bottom:2px;color:var(--muted)}
+.ladder li.cur{border-left-color:var(--accent);background:var(--region);color:var(--text);font-weight:600}
+.ladder li.done{border-left-color:var(--ok)}
+.score{display:flex;gap:1rem;font-size:.85rem;color:var(--muted)}
+.score b{color:var(--text)}
+kbd{font-family:ui-monospace,Consolas,monospace;font-size:.8rem;background:var(--region);border:1px solid var(--border);border-radius:.25rem;padding:0 .3rem}
+details{margin:.3rem 0} summary{cursor:pointer;font-weight:600;font-size:.9rem}
+.glossary dt{font-weight:600;margin-top:.5rem;font-size:.9rem} .glossary dd{margin:0 0 .2rem 0;font-size:.85rem;color:var(--muted)}
+.spinner{display:inline-block;width:1em;height:1em;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+.feedback{font-size:.92rem;margin:.5rem 0;padding:.6rem .7rem;border-radius:.4rem;background:var(--region)}
+.feedback.good{border-left:4px solid var(--ok)} .feedback.bad{border-left:4px solid var(--err)} .feedback.info{border-left:4px solid var(--accent)}
+.sr-only{position:absolute;left:-9999px}
+footer{padding:.6rem 1rem;color:var(--muted);font-size:.75rem;text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>Sudoku-Trainer</h1>
+    <span id="modeBadge" class="badge">Spiel</span>
+    <span id="levelBadge" class="badge lvl"></span>
+  </div>
+  <div class="row">
+    <span id="timer" class="timer">00:00</span>
+  </div>
+</header>
+
+<main>
+  <section class="board-col">
+    <div id="grid" role="grid" aria-label="Sudoku-Raster"></div>
+    <div class="numpad" id="numpad"></div>
+    <div class="toolbar">
+      <button data-act="undo" title="Rückgängig (Ctrl+Z)">↶ Rückgängig</button>
+      <button data-act="redo" title="Wiederholen (Ctrl+Y)">↷ Wiederholen</button>
+      <button id="pencilBtn" class="toggle" data-act="pencil" title="Kandidaten-Modus (Taste N)">✎ Kandidaten</button>
+      <button data-act="erase" title="Zelle löschen (Entf)">⌫ Löschen</button>
+      <button data-act="hint" class="primary" title="Hinweis (Taste H)">💡 Hinweis</button>
+    </div>
+    <div id="status" class="status"></div>
+  </section>
+
+  <aside class="panel">
+    <nav class="tabs">
+      <button class="tab active" data-tab="play">Spiel</button>
+      <button class="tab" data-tab="hint">Hinweis</button>
+      <button class="tab" data-tab="trainer">Trainer</button>
+      <button class="tab" data-tab="enter">Eingabe</button>
+      <button class="tab" data-tab="help">Hilfe</button>
+    </nav>
+
+    <section id="tab-play" class="tabpane active">
+      <div class="card">
+        <h3>Neues Sudoku erzeugen</h3>
+        <div class="levels" id="levelPick"></div>
+        <div class="row">
+          <button class="primary" id="genBtn" data-act="generate">Erzeugen</button>
+          <span id="genInfo" class="muted"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Kandidaten</h3>
+        <div class="row">
+          <label><input type="checkbox" id="autoCands" data-act="autoToggle"> Kandidaten automatisch eintragen</label>
+        </div>
+        <div class="row">
+          <button class="small" data-act="fillCands">Kandidaten füllen</button>
+          <button class="small" data-act="clearCands">Kandidaten löschen</button>
+        </div>
+        <p class="muted">Im Kandidaten-Modus (✎ oder Taste <kbd>N</kbd>) schalten Ziffern Notizen um. <kbd>Shift</kbd>+Ziffer geht immer.</p>
+      </div>
+      <div class="card">
+        <h3>Prüfen</h3>
+        <div class="row">
+          <label><input type="checkbox" id="showWrong" data-act="showWrongToggle"> Fehler gegen die Lösung markieren</label>
+        </div>
+        <div class="row">
+          <button class="small" data-act="check">Jetzt prüfen</button>
+        </div>
+        <p class="muted">Doppelte Ziffern in Zeile, Spalte oder Block werden immer rot angezeigt.</p>
+      </div>
+      <div class="card">
+        <h3>Lösen</h3>
+        <div class="row">
+          <button class="small" data-act="stepSolve">Nächsten Schritt ausführen</button>
+          <button class="small" data-act="singlesSolve">Alle Einer eintragen</button>
+          <button class="small" data-act="solveAll">Komplett lösen</button>
+          <button class="small" data-act="reset">Zurücksetzen</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Export</h3>
+        <div class="row">
+          <input type="text" id="exportStr" readonly>
+        </div>
+        <div class="row">
+          <button class="small" data-act="copyExport">Kopieren</button>
+          <span class="muted">81 Zeichen, «.» = leer (Vorgaben).</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-hint" class="tabpane">
+      <div class="card">
+        <h3>Schrittweise Hinweise</h3>
+        <p class="muted">Jeder Klick auf «Hinweis» verrät ein Stück mehr: 1) Technik, 2) Bereich, 3) beteiligte Zellen, 4) vollständige Begründung mit Ergebnis.</p>
+        <div class="row">
+          <button class="primary" data-act="hint">💡 Hinweis (nächste Stufe)</button>
+          <button data-act="hintFull">Schritt komplett zeigen</button>
+          <button data-act="hintApply" id="hintApplyBtn" disabled>Anwenden</button>
+          <button class="small" data-act="hintClear">Ausblenden</button>
+        </div>
+        <div id="hintBox" class="hintbox">Noch kein Hinweis angefordert.</div>
+      </div>
+    </section>
+
+    <section id="tab-trainer" class="tabpane">
+      <div class="card">
+        <h3>Trainer-Modus</h3>
+        <p class="muted">Der Trainer begleitet dich Schritt für Schritt. Er führt dich durch eine feste Reihenfolge von Regeln, von einfach bis schwierig. Bei jeder Regel prüfst du selbst, ob sie auf dem aktuellen Brett anwendbar ist. Nach jedem Eintrag oder jeder Streichung beginnt die Prüfung wieder bei Regel 1.</p>
+        <div class="row">
+          <button id="trainerToggle" class="primary" data-act="trainerToggle">Trainer starten</button>
+          <span class="muted" id="trainerNote"></span>
+        </div>
+      </div>
+      <div id="trainerPanel"></div>
+    </section>
+
+    <section id="tab-enter" class="tabpane">
+      <div class="card">
+        <h3>Eigenes Sudoku eingeben</h3>
+        <p class="muted">Im Eingabemodus setzt du die Vorgaben direkt im Raster (Zelle anklicken, Ziffer tippen). Alternativ fügst du unten einen Text mit 81 Zeichen ein (Ziffern 1–9, leer als «.», «0» oder «_»; Zeilenumbrüche sind erlaubt).</p>
+        <div class="row">
+          <button data-act="enterEmpty">Leeres Raster eingeben</button>
+          <button data-act="enterCurrent">Aktuelles Sudoku bearbeiten</button>
+        </div>
+        <textarea id="importText" rows="4" placeholder="z. B. 53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79"></textarea>
+        <div class="row">
+          <button data-act="importText">Text übernehmen</button>
+          <button data-act="clearEnter">Raster leeren</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Gültigkeit prüfen</h3>
+        <div class="row">
+          <button class="primary" data-act="validate">Prüfen</button>
+          <button data-act="adopt" id="adoptBtn">Übernehmen und spielen</button>
+          <button class="small" data-act="cancelEnter">Abbrechen</button>
+        </div>
+        <div id="validateBox" class="hintbox">Noch nicht geprüft.</div>
+      </div>
+    </section>
+
+    <section id="tab-help" class="tabpane">
+      <div class="card">
+        <h3>Bedienung</h3>
+        <p><b>Zelle wählen:</b> Klick oder Pfeiltasten. <b>Ziffer setzen:</b> Tasten <kbd>1</kbd>–<kbd>9</kbd> oder Ziffernblock unter dem Raster. <b>Löschen:</b> <kbd>Entf</kbd>, <kbd>Backspace</kbd> oder <kbd>0</kbd>.</p>
+        <p><b>Kandidaten (Notizen):</b> <kbd>Shift</kbd>+Ziffer oder Kandidaten-Modus (<kbd>N</kbd>). Mit «Kandidaten automatisch eintragen» werden alle möglichen Kandidaten laufend berechnet; eigene Streichungen bleiben erhalten.</p>
+        <p><b>Weitere Tasten:</b> <kbd>H</kbd> Hinweis, <kbd>Ctrl</kbd>+<kbd>Z</kbd> rückgängig, <kbd>Ctrl</kbd>+<kbd>Y</kbd> wiederholen, <kbd>Esc</kbd> Auswahl und Markierungen aufheben.</p>
+        <p><b>Hinweise und Trainer</b> beziehen sich auf die angezeigten Kandidaten. In Zellen ohne Notizen werden alle noch möglichen Ziffern angenommen.</p>
+        <p><b>Schwierigkeitsstufen:</b> 1 Sehr leicht (nur nackte Einer) · 2 Leicht (versteckte Einer) · 3 Mittel (Paare, Block-Linie) · 4 Schwer (Tripel, X-Wing, XY-/XYZ-Wing) · 5 Sehr schwer (Quadrupel, Schwertfisch, Qualle, Färbung) · 6 Extrem (Versuch und Irrtum nötig).</p>
+      </div>
+      <div class="card">
+        <h3>Lösungstechniken</h3>
+        <dl class="glossary" id="glossary"></dl>
+      </div>
+      <div class="card">
+        <h3>Hinweise zur App</h3>
+        <p class="muted">Diese Seite arbeitet vollständig lokal im Browser. Der Spielstand wird im lokalen Speicher des Browsers gesichert. Es werden keine Daten übertragen.</p>
+      </div>
+    </section>
+  </aside>
+</main>
+<footer>Sudoku-Trainer – eigenständige Einzelseiten-App ohne externe Abhängigkeiten.</footer>
+
+<script>
+'use strict';
+/* =====================================================================
+   ENGINE START – reine Logik ohne DOM (kann separat getestet werden)
+   ===================================================================== */
+const ALL = 0b1111111110; // Bits 1..9
+const bit = d => 1 << d;
+function popcount(m){ let c = 0; while (m){ m &= m - 1; c++; } return c; }
+function digitsOf(m){ const r = []; for (let d = 1; d <= 9; d++) if (m & bit(d)) r.push(d); return r; }
+const rowOf = i => Math.floor(i / 9), colOf = i => i % 9, boxOf = i => Math.floor(rowOf(i) / 3) * 3 + Math.floor(colOf(i) / 3);
+const UNITS = [];
+for (let r = 0; r < 9; r++) UNITS.push(Array.from({ length: 9 }, (_, c) => r * 9 + c));
+for (let c = 0; c < 9; c++) UNITS.push(Array.from({ length: 9 }, (_, r) => r * 9 + c));
+for (let b = 0; b < 9; b++){ const br = Math.floor(b / 3) * 3, bc = (b % 3) * 3; const u = []; for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) u.push((br + r) * 9 + bc + c); UNITS.push(u); }
+const CELL_UNITS = Array.from({ length: 81 }, (_, i) => [rowOf(i), 9 + colOf(i), 18 + boxOf(i)]);
+const PEERS = Array.from({ length: 81 }, (_, i) => { const s = new Set(); for (const u of CELL_UNITS[i]) for (const c of UNITS[u]) if (c !== i) s.add(c); return [...s]; });
+const unitName = u => u < 9 ? `Zeile ${u + 1}` : u < 18 ? `Spalte ${u - 8}` : `Block ${u - 17}`;
+const cellName = i => `Z${rowOf(i) + 1}S${colOf(i) + 1}`;
+const sees = (a, b) => a !== b && (rowOf(a) === rowOf(b) || colOf(a) === colOf(b) || boxOf(a) === boxOf(b));
+const fmtCells = cells => cells.map(cellName).join(', ');
+const setStr = ds => '{' + ds.join(', ') + '}';
+function fmtElims(elims){
+  const m = new Map();
+  for (const e of elims){ if (!m.has(e.cell)) m.set(e.cell, []); m.get(e.cell).push(e.digit); }
+  return [...m.entries()].map(([c, ds]) => `${cellName(c)}: ${ds.sort().join(', ')}`).join('; ');
+}
+function* combinations(arr, k, start = 0, acc = []){
+  if (acc.length === k){ yield acc.slice(); return; }
+  for (let i = start; i <= arr.length - (k - acc.length); i++){ acc.push(arr[i]); yield* combinations(arr, k, i + 1, acc); acc.pop(); }
+}
+function shuffle(a){ for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function computeCands(vals){
+  const rowM = new Int16Array(9), colM = new Int16Array(9), boxM = new Int16Array(9);
+  for (let i = 0; i < 81; i++){ const v = vals[i]; if (v){ rowM[rowOf(i)] |= bit(v); colM[colOf(i)] |= bit(v); boxM[boxOf(i)] |= bit(v); } }
+  const cands = new Int16Array(81);
+  for (let i = 0; i < 81; i++) cands[i] = vals[i] ? 0 : (ALL & ~(rowM[rowOf(i)] | colM[colOf(i)] | boxM[boxOf(i)]));
+  return cands;
+}
+function findConflicts(vals){
+  const bad = new Set(); const details = [];
+  for (let u = 0; u < 27; u++){
+    const where = {};
+    for (const c of UNITS[u]){ const v = vals[c]; if (!v) continue; (where[v] = where[v] || []).push(c); }
+    for (const d in where) if (where[d].length > 1){ where[d].forEach(c => bad.add(c)); details.push({ unit: u, digit: +d, cells: where[d] }); }
+  }
+  return { cells: bad, details };
+}
+/* Schneller Backtracking-Löser (zählt Lösungen bis limit) */
+function solveFast(vals, limit = 2, randomize = false){
+  if (findConflicts(vals).cells.size) return { count: 0, solution: null };
+  const v = Uint8Array.from(vals);
+  const rowM = new Int16Array(9), colM = new Int16Array(9), boxM = new Int16Array(9);
+  for (let i = 0; i < 81; i++) if (v[i]){ rowM[rowOf(i)] |= bit(v[i]); colM[colOf(i)] |= bit(v[i]); boxM[boxOf(i)] |= bit(v[i]); }
+  let count = 0, solution = null;
+  function rec(){
+    let best = -1, bestM = 0, bestC = 10;
+    for (let i = 0; i < 81; i++){
+      if (v[i]) continue;
+      const m = ALL & ~(rowM[rowOf(i)] | colM[colOf(i)] | boxM[boxOf(i)]);
+      const pc = popcount(m);
+      if (pc === 0) return;
+      if (pc < bestC){ best = i; bestM = m; bestC = pc; if (pc === 1) break; }
+    }
+    if (best < 0){ count++; if (!solution) solution = Uint8Array.from(v); return; }
+    const ds = digitsOf(bestM); if (randomize) shuffle(ds);
+    const r = rowOf(best), c = colOf(best), b = boxOf(best);
+    for (const d of ds){
+      v[best] = d; rowM[r] |= bit(d); colM[c] |= bit(d); boxM[b] |= bit(d);
+      rec();
+      v[best] = 0; rowM[r] &= ~bit(d); colM[c] &= ~bit(d); boxM[b] &= ~bit(d);
+      if (count >= limit) return;
+    }
+  }
+  rec();
+  return { count, solution };
+}
+function generateFullGrid(){ return solveFast(new Uint8Array(81), 1, true).solution; }
+
+/* ---------------- Techniken ---------------- */
+const TECH = {
+  fullHouse:   { name: 'Letzte freie Zelle', level: 1, desc: 'In einer Zeile, Spalte oder einem Block ist nur noch eine Zelle frei. Die einzige fehlende Ziffer gehört dorthin.' },
+  nakedSingle: { name: 'Nackter Einer', level: 1, desc: 'In einer Zelle bleibt nur ein Kandidat übrig, weil alle anderen Ziffern in ihrer Zeile, Spalte oder ihrem Block schon vorkommen.' },
+  hiddenSingle:{ name: 'Versteckter Einer', level: 2, desc: 'Eine Ziffer kann innerhalb einer Zeile, Spalte oder eines Blocks nur noch in einer einzigen Zelle stehen, auch wenn diese Zelle noch weitere Kandidaten hat.' },
+  pointing:    { name: 'Zeigendes Paar/Tripel (Block → Linie)', level: 3, desc: 'Alle Kandidaten einer Ziffer in einem Block liegen in derselben Zeile oder Spalte. Dann kann die Ziffer in dieser Linie ausserhalb des Blocks gestrichen werden.' },
+  claiming:    { name: 'Linie-Block-Reduktion (Linie → Block)', level: 3, desc: 'Alle Kandidaten einer Ziffer in einer Zeile oder Spalte liegen im selben Block. Dann kann die Ziffer im Rest des Blocks gestrichen werden.' },
+  nakedPair:   { name: 'Nacktes Paar', level: 3, desc: 'Zwei Zellen einer Einheit enthalten zusammen nur zwei Kandidaten. Diese beiden Ziffern können aus allen anderen Zellen der Einheit gestrichen werden.' },
+  hiddenPair:  { name: 'Verstecktes Paar', level: 3, desc: 'Zwei Ziffern kommen in einer Einheit nur in denselben zwei Zellen vor. Alle anderen Kandidaten dieser Zellen können gestrichen werden.' },
+  nakedTriple: { name: 'Nacktes Tripel', level: 4, desc: 'Drei Zellen einer Einheit enthalten zusammen nur drei Kandidaten (nicht jede Zelle muss alle drei haben). Diese Ziffern können im Rest der Einheit gestrichen werden.' },
+  hiddenTriple:{ name: 'Verstecktes Tripel', level: 4, desc: 'Drei Ziffern kommen in einer Einheit nur in denselben drei Zellen vor. Andere Kandidaten dieser Zellen können gestrichen werden.' },
+  xWing:       { name: 'X-Wing', level: 4, desc: 'Eine Ziffer kommt in zwei Zeilen nur in denselben zwei Spalten vor (oder umgekehrt). In diesen Spalten kann sie in allen anderen Zeilen gestrichen werden.' },
+  nakedQuad:   { name: 'Nacktes Quadrupel', level: 5, desc: 'Vier Zellen einer Einheit enthalten zusammen nur vier Kandidaten. Diese Ziffern können im Rest der Einheit gestrichen werden.' },
+  hiddenQuad:  { name: 'Verstecktes Quadrupel', level: 5, desc: 'Vier Ziffern kommen in einer Einheit nur in denselben vier Zellen vor. Andere Kandidaten dieser Zellen können gestrichen werden.' },
+  swordfish:   { name: 'Schwertfisch', level: 5, desc: 'Wie X-Wing, aber mit drei Zeilen und drei Spalten: Die Kandidaten einer Ziffer in drei Zeilen liegen in höchstens drei gemeinsamen Spalten.' },
+  jellyfish:   { name: 'Qualle', level: 5, desc: 'Wie X-Wing mit vier Zeilen und vier Spalten.' },
+  xyWing:      { name: 'XY-Wing', level: 4, desc: 'Eine Zelle {x,y} sieht zwei Zellen {x,z} und {y,z}. Egal welcher Wert in der Mittelzelle steht, eine der beiden Flügelzellen wird z. Zellen, die beide Flügel sehen, verlieren den Kandidaten z.' },
+  xyzWing:     { name: 'XYZ-Wing', level: 4, desc: 'Eine Zelle {x,y,z} sieht zwei Zellen {x,z} und {y,z}. Eine der drei Zellen wird z; Zellen, die alle drei sehen, verlieren z.' },
+  coloring:    { name: 'Einfache Färbung', level: 5, desc: 'Für eine Ziffer werden Ketten «starker Paare» (Einheiten mit genau zwei Kandidaten) abwechselnd gefärbt. Sieht eine Zelle beide Farben, oder trifft eine Farbe sich selbst, ergeben sich Streichungen.' },
+  bifurcation: { name: 'Versuch und Irrtum', level: 6, desc: 'Keine der bekannten Techniken hilft weiter. Eine Annahme in einer Zelle mit wenigen Kandidaten wird verfolgt, bis sie zu einem Widerspruch führt.' }
+};
+const ORDER = ['fullHouse','nakedSingle','hiddenSingle','pointing','claiming','nakedPair','hiddenPair','nakedTriple','hiddenTriple','xWing','xyWing','xyzWing','nakedQuad','hiddenQuad','swordfish','jellyfish','coloring','bifurcation'];
+const LEVELS = { 1: 'Sehr leicht', 2: 'Leicht', 3: 'Mittel', 4: 'Schwer', 5: 'Sehr schwer', 6: 'Extrem' };
+
+function mkStep(tech, p){
+  return Object.assign({ tech, name: TECH[tech].name, level: TECH[tech].level, cells: [], regionCells: [], placements: [], eliminations: [], hint2: '', explain: '' }, p);
+}
+function unitPresent(vals, u){ let m = 0; for (const c of UNITS[u]) if (vals[c]) m |= bit(vals[c]); return m; }
+function candPos(ctx, u, d){ const r = []; for (const c of UNITS[u]) if (!ctx.vals[c] && (ctx.cands[c] & bit(d))) r.push(c); return r; }
+
+function* findFullHouse(ctx){
+  const { vals } = ctx;
+  for (let u = 0; u < 27; u++){
+    let empty = -1, n = 0;
+    for (const c of UNITS[u]){ if (!vals[c]){ n++; empty = c; } }
+    if (n !== 1) continue;
+    const missing = digitsOf(ALL & ~unitPresent(vals, u));
+    if (missing.length !== 1) continue;
+    const d = missing[0];
+    yield mkStep('fullHouse', { cells: [empty], regionCells: UNITS[u], digits: [d], placements: [{ cell: empty, digit: d }],
+      hint2: `Schau dir ${unitName(u)} an: Dort ist nur noch eine Zelle frei.`,
+      explain: `In ${unitName(u)} ist nur noch die Zelle ${cellName(empty)} frei. Von den Ziffern 1 bis 9 fehlt dort genau die ${d}, also muss sie in ${cellName(empty)} stehen.` });
+  }
+}
+function* findNakedSingle(ctx){
+  const { vals, cands } = ctx;
+  for (let i = 0; i < 81; i++){
+    if (vals[i] || popcount(cands[i]) !== 1) continue;
+    const d = digitsOf(cands[i])[0];
+    const inRow = [], inCol = [], inBox = [], struck = [];
+    const rowP = unitPresent(vals, rowOf(i)), colP = unitPresent(vals, 9 + colOf(i)), boxP = unitPresent(vals, 18 + boxOf(i));
+    for (let e = 1; e <= 9; e++){
+      if (e === d) continue;
+      if (rowP & bit(e)) inRow.push(e); else if (colP & bit(e)) inCol.push(e); else if (boxP & bit(e)) inBox.push(e); else struck.push(e);
+    }
+    const parts = [];
+    if (inRow.length) parts.push(`${inRow.join(', ')} ${inRow.length > 1 ? 'stehen' : 'steht'} bereits in Zeile ${rowOf(i) + 1}`);
+    if (inCol.length) parts.push(`${inCol.join(', ')} in Spalte ${colOf(i) + 1}`);
+    if (inBox.length) parts.push(`${inBox.join(', ')} in Block ${boxOf(i) + 1}`);
+    if (struck.length) parts.push(`${struck.join(', ')} ${struck.length > 1 ? 'wurden' : 'wurde'} bereits als Kandidat gestrichen`);
+    yield mkStep('nakedSingle', { cells: [i], regionCells: UNITS[rowOf(i)], digits: [d], placements: [{ cell: i, digit: d }],
+      hint2: `Suche in Zeile ${rowOf(i) + 1} eine Zelle, in der nur noch ein einziger Kandidat übrig bleibt.`,
+      explain: `In ${cellName(i)} bleibt nur der Kandidat ${d}: ${parts.join('; ')}. Also muss dort die ${d} stehen.` });
+  }
+}
+function* findHiddenSingle(ctx){
+  const { vals, cands } = ctx;
+  for (let u = 0; u < 27; u++){
+    const present = unitPresent(vals, u);
+    const emptyCount = UNITS[u].filter(c => !vals[c]).length;
+    if (emptyCount <= 1) continue;
+    for (let d = 1; d <= 9; d++){
+      if (present & bit(d)) continue;
+      const pos = candPos(ctx, u, d);
+      if (pos.length !== 1) continue;
+      const cell = pos[0];
+      const others = UNITS[u].filter(c => !vals[c] && c !== cell);
+      const blockers = new Set(), struck = [];
+      for (const o of others){ const b = PEERS[o].find(p => vals[p] === d); if (b !== undefined) blockers.add(b); else struck.push(o); }
+      let reason = `Die übrigen freien Zellen (${fmtCells(others)}) kommen für die ${d} nicht in Frage`;
+      if (blockers.size) reason += `, weil sie eine ${d} sehen (in ${fmtCells([...blockers])})`;
+      if (struck.length) reason += (blockers.size ? `; in ${fmtCells(struck)} wurde die ${d} bereits als Kandidat gestrichen` : `, weil die ${d} dort bereits als Kandidat gestrichen wurde`);
+      yield mkStep('hiddenSingle', { cells: [cell], regionCells: UNITS[u], digits: [d], placements: [{ cell, digit: d }],
+        hint2: `Achte auf die Ziffer ${d} in ${unitName(u)}: Wo kann sie dort noch stehen?`,
+        explain: `In ${unitName(u)} kann die ${d} nur noch in ${cellName(cell)} stehen. ${reason}.` });
+    }
+  }
+}
+function* findPointing(ctx){
+  const { vals, cands } = ctx;
+  for (let b = 0; b < 9; b++){
+    const u = 18 + b; const present = unitPresent(vals, u);
+    for (let d = 1; d <= 9; d++){
+      if (present & bit(d)) continue;
+      const pos = candPos(ctx, u, d);
+      if (pos.length < 2) continue;
+      for (const [kind, of, base] of [['Zeile', rowOf, 0], ['Spalte', colOf, 9]]){
+        const l = of(pos[0]);
+        if (!pos.every(c => of(c) === l)) continue;
+        const lineU = base + l;
+        const elims = UNITS[lineU].filter(c => !vals[c] && boxOf(c) !== b && (cands[c] & bit(d))).map(c => ({ cell: c, digit: d }));
+        if (!elims.length) continue;
+        yield mkStep('pointing', { cells: pos, regionCells: UNITS[u], digits: [d], eliminations: elims,
+          hint2: `Achte auf die Ziffer ${d} in Block ${b + 1}: In welchen Zellen kann sie dort noch stehen, und was bedeutet das für die ${kind}?`,
+          explain: `In Block ${b + 1} kann die ${d} nur noch in ${fmtCells(pos)} stehen. Alle diese Zellen liegen in ${kind} ${l + 1}. Die ${d} von ${kind} ${l + 1} steht also sicher in Block ${b + 1}, deshalb kann sie aus den übrigen Zellen von ${kind} ${l + 1} gestrichen werden: ${fmtElims(elims)}.` });
+      }
+    }
+  }
+}
+function* findClaiming(ctx){
+  const { vals, cands } = ctx;
+  for (let l = 0; l < 18; l++){
+    const present = unitPresent(vals, l);
+    for (let d = 1; d <= 9; d++){
+      if (present & bit(d)) continue;
+      const pos = candPos(ctx, l, d);
+      if (pos.length < 2) continue;
+      const b = boxOf(pos[0]);
+      if (!pos.every(c => boxOf(c) === b)) continue;
+      const lineSet = new Set(UNITS[l]);
+      const elims = UNITS[18 + b].filter(c => !vals[c] && !lineSet.has(c) && (cands[c] & bit(d))).map(c => ({ cell: c, digit: d }));
+      if (!elims.length) continue;
+      yield mkStep('claiming', { cells: pos, regionCells: UNITS[l], digits: [d], eliminations: elims,
+        hint2: `Achte auf die Ziffer ${d} in ${unitName(l)}: In welchem Block liegen alle ihre Kandidaten?`,
+        explain: `In ${unitName(l)} kann die ${d} nur noch in ${fmtCells(pos)} stehen, und alle diese Zellen liegen in Block ${b + 1}. Die ${d} von Block ${b + 1} muss also in ${unitName(l)} liegen; sie kann aus den übrigen Zellen von Block ${b + 1} gestrichen werden: ${fmtElims(elims)}.` });
+    }
+  }
+}
+const SUBSET_NAME = { 2: 'Paar', 3: 'Tripel', 4: 'Quadrupel' };
+const NAKED_ID = { 2: 'nakedPair', 3: 'nakedTriple', 4: 'nakedQuad' }, HIDDEN_ID = { 2: 'hiddenPair', 3: 'hiddenTriple', 4: 'hiddenQuad' };
+function* findNakedSubset(ctx, k){
+  const { vals, cands } = ctx;
+  for (let u = 0; u < 27; u++){
+    const empties = UNITS[u].filter(c => !vals[c]);
+    if (empties.length <= k) continue;
+    const cells = empties.filter(c => { const pc = popcount(cands[c]); return pc >= 2 && pc <= k; });
+    if (cells.length < k) continue;
+    for (const combo of combinations(cells, k)){
+      let union = 0; for (const c of combo) union |= cands[c];
+      if (popcount(union) !== k) continue;
+      const elims = [];
+      for (const c of empties){ if (combo.includes(c)) continue; const m = cands[c] & union; for (const d of digitsOf(m)) elims.push({ cell: c, digit: d }); }
+      if (!elims.length) continue;
+      const ds = digitsOf(union);
+      yield mkStep(NAKED_ID[k], { cells: combo, regionCells: UNITS[u], digits: ds, eliminations: elims,
+        hint2: `Suche in ${unitName(u)} nach ${k} Zellen, die zusammen nur ${k} verschiedene Kandidaten enthalten.`,
+        explain: `Die Zellen ${fmtCells(combo)} in ${unitName(u)} enthalten zusammen nur die Kandidaten ${setStr(ds)}. Diese ${k} Ziffern müssen also in genau diesen ${k} Zellen stehen (nacktes ${SUBSET_NAME[k]}). Sie können aus den übrigen Zellen von ${unitName(u)} gestrichen werden: ${fmtElims(elims)}.` });
+    }
+  }
+}
+function* findHiddenSubset(ctx, k){
+  const { vals, cands } = ctx;
+  for (let u = 0; u < 27; u++){
+    const present = unitPresent(vals, u);
+    const missing = digitsOf(ALL & ~present);
+    if (missing.length <= k) continue;
+    const posOf = {};
+    const ds = [];
+    for (const d of missing){ const p = candPos(ctx, u, d); posOf[d] = p; if (p.length >= 2 && p.length <= k) ds.push(d); }
+    if (ds.length < k) continue;
+    for (const combo of combinations(ds, k)){
+      const cellSet = new Set(); for (const d of combo) for (const c of posOf[d]) cellSet.add(c);
+      if (cellSet.size !== k) continue;
+      let dm = 0; for (const d of combo) dm |= bit(d);
+      const cells = [...cellSet].sort((a, b) => a - b);
+      const elims = [];
+      for (const c of cells){ for (const d of digitsOf(cands[c] & ~dm)) elims.push({ cell: c, digit: d }); }
+      if (!elims.length) continue;
+      yield mkStep(HIDDEN_ID[k], { cells, regionCells: UNITS[u], digits: combo, eliminations: elims,
+        hint2: `Achte in ${unitName(u)} auf Ziffern, die nur noch in wenigen, denselben Zellen möglich sind.`,
+        explain: `In ${unitName(u)} kommen die Ziffern ${setStr(combo)} nur in den Zellen ${fmtCells(cells)} vor. Diese ${k} Ziffern belegen also genau diese ${k} Zellen (verstecktes ${SUBSET_NAME[k]}). Alle anderen Kandidaten dort können gestrichen werden: ${fmtElims(elims)}.` });
+    }
+  }
+}
+const FISH_ID = { 2: 'xWing', 3: 'swordfish', 4: 'jellyfish' };
+function* findFish(ctx, k){
+  const { vals, cands } = ctx;
+  for (let d = 1; d <= 9; d++){
+    for (const base of ['row', 'col']){
+      const lineSets = [];
+      for (let l = 0; l < 9; l++){
+        const unit = base === 'row' ? UNITS[l] : UNITS[9 + l];
+        let m = 0, n = 0;
+        unit.forEach((c, idx) => { if (!vals[c] && (cands[c] & bit(d))){ m |= 1 << idx; n++; } });
+        if (n >= 2 && n <= k) lineSets.push({ l, m });
+      }
+      if (lineSets.length < k) continue;
+      for (const combo of combinations(lineSets, k)){
+        let cover = 0; for (const x of combo) cover |= x.m;
+        if (popcount(cover) !== k) continue;
+        const lines = combo.map(x => x.l);
+        const elims = [];
+        for (let ci = 0; ci < 9; ci++){
+          if (!(cover & (1 << ci))) continue;
+          const cross = base === 'row' ? UNITS[9 + ci] : UNITS[ci];
+          for (const c of cross){ const li = base === 'row' ? rowOf(c) : colOf(c); if (lines.includes(li)) continue; if (!vals[c] && (cands[c] & bit(d))) elims.push({ cell: c, digit: d }); }
+        }
+        if (!elims.length) continue;
+        const cells = [];
+        for (const x of combo){ const unit = base === 'row' ? UNITS[x.l] : UNITS[9 + x.l]; unit.forEach((c, idx) => { if (x.m & (1 << idx)) cells.push(c); }); }
+        const crossIdx = []; for (let ci = 0; ci < 9; ci++) if (cover & (1 << ci)) crossIdx.push(ci + 1);
+        const baseName = base === 'row' ? 'Zeilen' : 'Spalten', crossName = base === 'row' ? 'Spalten' : 'Zeilen';
+        const regionCells = []; for (const x of combo) regionCells.push(...(base === 'row' ? UNITS[x.l] : UNITS[9 + x.l]));
+        yield mkStep(FISH_ID[k], { cells, regionCells, digits: [d], eliminations: elims,
+          hint2: `Achte auf die Ziffer ${d}: Suche ${k} ${baseName}, in denen die ${d} nur in denselben ${k} ${crossName} vorkommt.`,
+          explain: `Die Ziffer ${d} kommt in den ${baseName} ${lines.map(x => x + 1).join(', ')} nur in den ${crossName} ${crossIdx.join(', ')} vor (Zellen ${fmtCells(cells)}). Die ${d}en dieser ${k} ${baseName} belegen also genau diese ${k} ${crossName}. In allen anderen ${baseName} kann die ${d} dort gestrichen werden: ${fmtElims(elims)}.` });
+      }
+    }
+  }
+}
+function* findXYWing(ctx){
+  const { vals, cands } = ctx;
+  const biv = []; for (let i = 0; i < 81; i++) if (!vals[i] && popcount(cands[i]) === 2) biv.push(i);
+  for (const p of biv){
+    const [x, y] = digitsOf(cands[p]);
+    const pincers = biv.filter(a => sees(p, a) && popcount(cands[a] & cands[p]) === 1);
+    for (const a of pincers){
+      if ((cands[a] & cands[p]) !== bit(x)) continue;
+      for (const b of pincers){
+        if (b === a || (cands[b] & cands[p]) !== bit(y)) continue;
+        const za = cands[a] & ~cands[p], zb = cands[b] & ~cands[p];
+        if (za !== zb) continue;
+        const z = digitsOf(za)[0];
+        const elims = [];
+        for (let c = 0; c < 81; c++){ if (vals[c] || c === p || c === a || c === b || !(cands[c] & bit(z))) continue; if (sees(c, a) && sees(c, b)) elims.push({ cell: c, digit: z }); }
+        if (!elims.length) continue;
+        yield mkStep('xyWing', { cells: [p, a, b], regionCells: [], digits: [x, y, z], eliminations: elims,
+          hint2: `Suche eine Zelle mit genau zwei Kandidaten, die zwei weitere Zwei-Kandidaten-Zellen sieht, welche je einen ihrer Kandidaten teilen. Es geht um die Ziffer ${z}.`,
+          explain: `${cellName(p)} hat die Kandidaten ${setStr([x, y])} und sieht ${cellName(a)} ${setStr(digitsOf(cands[a]))} sowie ${cellName(b)} ${setStr(digitsOf(cands[b]))}. Ist ${cellName(p)} = ${x}, wird ${cellName(a)} = ${z}; ist ${cellName(p)} = ${y}, wird ${cellName(b)} = ${z}. In jedem Fall steht in ${cellName(a)} oder ${cellName(b)} eine ${z}. Zellen, die beide sehen, können keine ${z} enthalten: ${fmtElims(elims)}.` });
+      }
+    }
+  }
+}
+function* findXYZWing(ctx){
+  const { vals, cands } = ctx;
+  for (let p = 0; p < 81; p++){
+    if (vals[p] || popcount(cands[p]) !== 3) continue;
+    const wings = PEERS[p].filter(a => !vals[a] && popcount(cands[a]) === 2 && (cands[a] & ~cands[p]) === 0);
+    for (let i = 0; i < wings.length; i++) for (let j = i + 1; j < wings.length; j++){
+      const a = wings[i], b = wings[j];
+      const common = cands[a] & cands[b];
+      if (popcount(common) !== 1 || (cands[a] | cands[b]) !== cands[p]) continue;
+      const z = digitsOf(common)[0];
+      const elims = [];
+      for (let c = 0; c < 81; c++){ if (vals[c] || c === p || c === a || c === b || !(cands[c] & bit(z))) continue; if (sees(c, p) && sees(c, a) && sees(c, b)) elims.push({ cell: c, digit: z }); }
+      if (!elims.length) continue;
+      yield mkStep('xyzWing', { cells: [p, a, b], regionCells: [], digits: digitsOf(cands[p]), eliminations: elims,
+        hint2: `Suche eine Zelle mit drei Kandidaten, die zwei Zwei-Kandidaten-Zellen sieht, deren Kandidaten Teilmengen davon sind. Es geht um die Ziffer ${z}.`,
+        explain: `${cellName(p)} hat die Kandidaten ${setStr(digitsOf(cands[p]))} und sieht ${cellName(a)} ${setStr(digitsOf(cands[a]))} sowie ${cellName(b)} ${setStr(digitsOf(cands[b]))}. Welchen Wert ${cellName(p)} auch annimmt: Eine der drei Zellen enthält die ${z}. Zellen, die alle drei sehen, können daher keine ${z} enthalten: ${fmtElims(elims)}.` });
+    }
+  }
+}
+function* findColoring(ctx){
+  const { vals, cands } = ctx;
+  for (let d = 1; d <= 9; d++){
+    const adj = new Map();
+    for (let u = 0; u < 27; u++){
+      const pos = candPos(ctx, u, d);
+      if (pos.length === 2){ if (!adj.has(pos[0])) adj.set(pos[0], []); if (!adj.has(pos[1])) adj.set(pos[1], []); adj.get(pos[0]).push(pos[1]); adj.get(pos[1]).push(pos[0]); }
+    }
+    if (!adj.size) continue;
+    const color = new Map();
+    for (const start of adj.keys()){
+      if (color.has(start)) continue;
+      const comp = []; const queue = [start]; color.set(start, 0);
+      while (queue.length){ const c = queue.shift(); comp.push(c); for (const n of adj.get(c)) if (!color.has(n)){ color.set(n, 1 - color.get(c)); queue.push(n); } }
+      if (comp.length < 4) continue;
+      const A = comp.filter(c => color.get(c) === 0), B = comp.filter(c => color.get(c) === 1);
+      const chainText = `Für die Ziffer ${d} bilden die Zellen ${fmtCells(comp)} eine Kette starker Paare (in jeder beteiligten Einheit kommt die ${d} nur in genau zwei dieser Zellen vor). Färbt man abwechselnd, erhält man Farbe A = ${fmtCells(A)} und Farbe B = ${fmtCells(B)}. Genau eine der beiden Farben enthält die ${d} in allen ihren Zellen.`;
+      let found = false;
+      for (const [grp, name, other] of [[A, 'A', B], [B, 'B', A]]){
+        for (let i = 0; i < grp.length && !found; i++) for (let j = i + 1; j < grp.length && !found; j++){
+          if (!sees(grp[i], grp[j])) continue;
+          const elims = grp.map(c => ({ cell: c, digit: d }));
+          found = true;
+          yield mkStep('coloring', { cells: comp, regionCells: [], digits: [d], eliminations: elims, placements: [],
+            hint2: `Achte auf die Ziffer ${d} und ihre starken Paare (Einheiten mit genau zwei Kandidaten für die ${d}). Verfolge die Kette.`,
+            explain: `${chainText} ${cellName(grp[i])} und ${cellName(grp[j])} haben beide Farbe ${name}, sehen sich aber gegenseitig. Farbe ${name} kann also nicht wahr sein, und die ${d} wird aus allen Zellen der Farbe ${name} gestrichen: ${fmtElims(elims)}. (Damit steht die ${d} in allen Zellen der Farbe ${name === 'A' ? 'B' : 'A'}: ${fmtCells(other)}.)` });
+        }
+      }
+      if (found) continue;
+      const compSet = new Set(comp);
+      const elims = []; const witness = [];
+      for (let c = 0; c < 81; c++){
+        if (vals[c] || compSet.has(c) || !(cands[c] & bit(d))) continue;
+        const a = A.find(x => sees(c, x)), b = B.find(x => sees(c, x));
+        if (a !== undefined && b !== undefined){ elims.push({ cell: c, digit: d }); witness.push(`${cellName(c)} sieht ${cellName(a)} (A) und ${cellName(b)} (B)`); }
+      }
+      if (elims.length){
+        yield mkStep('coloring', { cells: comp, regionCells: [], digits: [d], eliminations: elims,
+          hint2: `Achte auf die Ziffer ${d} und ihre starken Paare (Einheiten mit genau zwei Kandidaten für die ${d}). Verfolge die Kette.`,
+          explain: `${chainText} Eine Zelle, die eine Zelle der Farbe A und eine der Farbe B sieht, kann keine ${d} enthalten, weil eine der beiden Farben sicher wahr ist: ${witness.join('; ')}. Streichungen: ${fmtElims(elims)}.` });
+      }
+    }
+  }
+}
+function propagateSingles(ctx, cell, digit, maxSteps = 80){
+  const v = Uint8Array.from(ctx.vals); const cd = Int16Array.from(ctx.cands);
+  const chain = [];
+  const place = (i, d) => { v[i] = d; cd[i] = 0; for (const p of PEERS[i]) cd[p] &= ~bit(d); };
+  place(cell, digit); chain.push(`${cellName(cell)} = ${digit}`);
+  for (let s = 0; s < maxSteps; s++){
+    for (let i = 0; i < 81; i++) if (!v[i] && cd[i] === 0) return { contradiction: `${cellName(i)} hätte keinen Kandidaten mehr`, chain };
+    for (let u = 0; u < 27; u++){ const present = unitPresent(v, u); for (let d = 1; d <= 9; d++){ if (present & bit(d)) continue; if (!UNITS[u].some(c => !v[c] && (cd[c] & bit(d)))) return { contradiction: `in ${unitName(u)} gäbe es keinen Platz mehr für die ${d}`, chain }; } }
+    let placed = false;
+    for (let i = 0; i < 81 && !placed; i++) if (!v[i] && popcount(cd[i]) === 1){ const d = digitsOf(cd[i])[0]; place(i, d); chain.push(`${cellName(i)} = ${d}`); placed = true; }
+    if (!placed){
+      outer: for (let u = 0; u < 27; u++){ const present = unitPresent(v, u); for (let d = 1; d <= 9; d++){ if (present & bit(d)) continue; const pos = UNITS[u].filter(c => !v[c] && (cd[c] & bit(d))); if (pos.length === 1){ place(pos[0], d); chain.push(`${cellName(pos[0])} = ${d}`); placed = true; break outer; } } }
+    }
+    if (!placed) break;
+  }
+  return { contradiction: null, chain };
+}
+function* findBifurcation(ctx){
+  if (!ctx.solution) return;
+  const { vals, cands } = ctx;
+  let best = -1, bc = 10;
+  for (let i = 0; i < 81; i++){ if (vals[i]) continue; const pc = popcount(cands[i]); if (pc >= 2 && pc < bc && (cands[i] & bit(ctx.solution[i]))){ best = i; bc = pc; } }
+  if (best < 0) return;
+  const sol = ctx.solution[best];
+  const wrong = digitsOf(cands[best]).filter(d => d !== sol);
+  let chosen = null;
+  for (const w of wrong){ const r = propagateSingles(ctx, best, w); if (!chosen || (r.contradiction && (!chosen.r.contradiction || r.chain.length < chosen.r.chain.length))) chosen = { w, r }; }
+  const { w, r } = chosen;
+  const shown = r.chain.slice(1, 10);
+  let explain = `Keine der bekannten Techniken greift hier. In ${cellName(best)} sind nur noch ${setStr(digitsOf(cands[best]))} möglich. Angenommen, ${cellName(best)} = ${w}.`;
+  if (r.contradiction){
+    explain += shown.length ? ` Dann folgt zwingend: ${shown.join(' → ')}${r.chain.length > 10 ? ' → …' : ''}.` : '';
+    explain += ` Schliesslich ${r.contradiction}. Die Annahme ist also falsch, und die ${w} kann in ${cellName(best)} gestrichen werden.`;
+  } else {
+    explain += ` Diese Annahme führt letztlich zu einem Widerspruch, der sich hier nur durch tieferes Ausprobieren zeigen lässt. Die ${w} kann in ${cellName(best)} gestrichen werden.`;
+  }
+  yield mkStep('bifurcation', { cells: [best], regionCells: [], digits: [w], eliminations: [{ cell: best, digit: w }],
+    hint2: `Es gibt keine einfache Technik mehr. Wähle eine Zelle mit wenigen Kandidaten und verfolge eine Annahme bis zum Widerspruch. Ein guter Kandidat für den Versuch ist ${cellName(best)}.`,
+    explain });
+}
+const FINDERS = {
+  fullHouse: findFullHouse, nakedSingle: findNakedSingle, hiddenSingle: findHiddenSingle, pointing: findPointing, claiming: findClaiming,
+  nakedPair: c => findNakedSubset(c, 2), nakedTriple: c => findNakedSubset(c, 3), nakedQuad: c => findNakedSubset(c, 4),
+  hiddenPair: c => findHiddenSubset(c, 2), hiddenTriple: c => findHiddenSubset(c, 3), hiddenQuad: c => findHiddenSubset(c, 4),
+  xWing: c => findFish(c, 2), swordfish: c => findFish(c, 3), jellyfish: c => findFish(c, 4),
+  xyWing: findXYWing, xyzWing: findXYZWing, coloring: findColoring, bifurcation: findBifurcation
+};
+function firstStep(ctx, techs = ORDER){
+  for (const t of techs){ const it = FINDERS[t](ctx).next(); if (!it.done) return it.value; }
+  return null;
+}
+function allSteps(ctx, techs, limit = 60){
+  const out = [];
+  for (const t of techs){ for (const s of FINDERS[t](ctx)){ out.push(s); if (out.length >= limit) return out; } }
+  return out;
+}
+function applyStepToCtx(ctx, step){
+  for (const p of step.placements){ ctx.vals[p.cell] = p.digit; ctx.cands[p.cell] = 0; for (const q of PEERS[p.cell]) ctx.cands[q] &= ~bit(p.digit); }
+  for (const e of step.eliminations) ctx.cands[e.cell] &= ~bit(e.digit);
+}
+/* Schwierigkeit bewerten: höchste benötigte Technikstufe; bricht ab, wenn maxLevel überschritten wird */
+function rateLevel(puzzle, solution, maxLevel = 6){
+  const vals = Uint8Array.from(puzzle); const cands = computeCands(vals);
+  const ctx = { vals, cands, solution };
+  let level = 0; const used = {};
+  let empties = 0; for (let i = 0; i < 81; i++) if (!vals[i]) empties++;
+  for (let guard = 0; guard < 600 && empties > 0; guard++){
+    const step = firstStep(ctx);
+    if (!step) return { level: 6, used, solved: false, exceeded: maxLevel < 6 };
+    if (step.level > level){ level = step.level; if (level > maxLevel) return { level, used, solved: false, exceeded: true }; }
+    used[step.tech] = (used[step.tech] || 0) + 1;
+    empties -= step.placements.length;
+    applyStepToCtx(ctx, step);
+  }
+  return { level, used, solved: empties === 0, exceeded: false };
+}
+function carveSync(full, level, order){
+  const p = Uint8Array.from(full);
+  for (const i of order){
+    const j = 80 - i; const a = p[i], b = p[j];
+    if (!a && !b) continue;
+    p[i] = 0; p[j] = 0;
+    let ok = solveFast(p, 2).count === 1;
+    if (ok && level < 6) ok = !rateLevel(p, full, level).exceeded;
+    if (!ok){ p[i] = a; p[j] = b; }
+  }
+  return p;
+}
+function gridToString(vals){ return Array.from(vals, v => v ? String(v) : '.').join(''); }
+function parseGrid(text){
+  const chars = (text || '').replace(/[^0-9._*\-]/g, '').replace(/[._*\-]/g, '0');
+  if (chars.length !== 81) return null;
+  return Uint8Array.from(chars, ch => +ch);
+}
+/* ===================================================================== ENGINE END */
+
+/* =====================================================================
+   Trainer-Regelleiter
+   ===================================================================== */
+const RUNGS = [
+  { id: 'singles', title: 'Einer: letzte freie Zelle / nackter Einer', techs: ['fullHouse', 'nakedSingle'],
+    q: 'Gibt es eine Zelle, in der nur noch ein einziger Kandidat möglich ist (oder eine Zeile, Spalte, einen Block mit nur noch einer freien Zelle)?',
+    how: 'Gehe die freien Zellen durch und zähle ihre Kandidaten. Mit automatischen Kandidaten fallen Zellen mit nur einer kleinen Ziffer sofort auf. Prüfe auch, ob irgendwo nur noch eine Zelle in einer Einheit leer ist.' },
+  { id: 'hidden', title: 'Versteckter Einer', techs: ['hiddenSingle'],
+    q: 'Gibt es eine Ziffer, die in einer Zeile, Spalte oder einem Block nur noch an einer einzigen Stelle stehen kann?',
+    how: 'Nimm eine Ziffer, z. B. die 1, und gehe alle Blöcke durch: Wo fehlt sie noch, und in wie vielen Zellen des Blocks ist sie noch möglich? Wiederhole das für alle Ziffern, dann für Zeilen und Spalten.' },
+  { id: 'boxline', title: 'Block-Linie-Wechselwirkung', techs: ['pointing', 'claiming'],
+    q: 'Liegen alle Kandidaten einer Ziffer innerhalb eines Blocks in derselben Zeile oder Spalte (oder alle Kandidaten einer Linie im selben Block), so dass sich etwas streichen lässt?',
+    how: 'Betrachte eine Ziffer und einen Block. Wenn ihre Kandidaten im Block alle in einer Zeile liegen, streiche die Ziffer im Rest dieser Zeile. Umgekehrt: Liegen alle Kandidaten einer Zeile in einem Block, streiche sie im Rest des Blocks.' },
+  { id: 'naked', title: 'Nackte Paare, Tripel, Quadrupel', techs: ['nakedPair', 'nakedTriple', 'nakedQuad'],
+    q: 'Gibt es in einer Einheit zwei (drei, vier) Zellen, die zusammen nur zwei (drei, vier) verschiedene Kandidaten enthalten, so dass sich in den anderen Zellen etwas streichen lässt?',
+    how: 'Suche Zellen mit genau zwei Kandidaten. Findest du zwei gleiche Paare in einer Einheit, streiche die beiden Ziffern aus den restlichen Zellen dieser Einheit. Bei Tripeln dürfen die Zellen auch nur je zwei der drei Ziffern enthalten.' },
+  { id: 'hiddensub', title: 'Versteckte Paare, Tripel, Quadrupel', techs: ['hiddenPair', 'hiddenTriple', 'hiddenQuad'],
+    q: 'Gibt es in einer Einheit zwei (drei, vier) Ziffern, die nur in denselben zwei (drei, vier) Zellen vorkommen, so dass sich in diesen Zellen andere Kandidaten streichen lassen?',
+    how: 'Zähle für eine Einheit, in wie vielen Zellen jede fehlende Ziffer noch möglich ist. Zwei Ziffern, die beide nur in denselben zwei Zellen vorkommen, bilden ein verstecktes Paar.' },
+  { id: 'fish', title: 'X-Wing, Schwertfisch, Qualle', techs: ['xWing', 'swordfish', 'jellyfish'],
+    q: 'Gibt es eine Ziffer, die in zwei (drei, vier) Zeilen nur in denselben zwei (drei, vier) Spalten vorkommt, oder umgekehrt?',
+    how: 'Nimm eine Ziffer und markiere ihre Kandidaten zeilenweise. Zwei Zeilen mit genau zwei Kandidaten in denselben Spalten bilden ein X: In diesen Spalten kann die Ziffer sonst nirgends stehen.' },
+  { id: 'wings', title: 'XY-Wing / XYZ-Wing', techs: ['xyWing', 'xyzWing'],
+    q: 'Gibt es eine Zelle mit zwei (drei) Kandidaten, die zwei passende Zwei-Kandidaten-Zellen sieht, so dass eine gemeinsame Ziffer irgendwo gestrichen werden kann?',
+    how: 'Suche eine Zelle {x,y}. Finde eine Zelle {x,z}, die sie sieht, und eine Zelle {y,z}, die sie ebenfalls sieht. Jede Zelle, die beide Flügel sieht, verliert z.' },
+  { id: 'coloring', title: 'Einfache Färbung', techs: ['coloring'],
+    q: 'Lässt sich für eine Ziffer eine Kette starker Paare (Einheiten mit genau zwei Kandidaten) so färben, dass eine Farbe sich widerspricht oder eine Zelle beide Farben sieht?',
+    how: 'Wähle eine Ziffer, markiere Einheiten mit genau zwei Kandidaten und verbinde sie zu einer Kette. Färbe abwechselnd. Sieht eine fremde Zelle beide Farben, streiche die Ziffer dort.' },
+  { id: 'bifurcation', title: 'Versuch und Irrtum', techs: ['bifurcation'],
+    q: 'Keine Standardtechnik greift mehr. Wähle eine Zelle mit zwei Kandidaten und verfolge eine Annahme bis zum Widerspruch.',
+    how: 'Nimm eine Zelle mit genau zwei Kandidaten. Setze probeweise den einen Wert und fülle alle sich ergebenden Einer aus. Ergibt sich ein Widerspruch, ist der andere Wert richtig.' }
+];
+
+/* =====================================================================
+   Zustand
+   ===================================================================== */
+const KEY = 'sudoku-trainer-v1';
+const S = {
+  mode: 'play', givens: new Uint8Array(81), vals: new Uint8Array(81), marks: new Int16Array(81), elim: new Int16Array(81),
+  auto: false, solution: null, unique: true, level: 0, sel: -1, pencil: false, hist: [], fut: [], hint: null, showWrong: false,
+  hlDigit: 0, elapsed: 0, done: false, generating: false, genLevel: 2, enterBackup: null,
+  trainer: { on: false, rung: 0, phase: 'ask', steps: [], step: null, score: { ok: 0, bad: 0, shown: 0 }, msg: '', msgKind: 'info', showHow: false }
+};
+
+function snapshot(){ return { vals: Array.from(S.vals), marks: Array.from(S.marks), elim: Array.from(S.elim), givens: Array.from(S.givens) }; }
+function restore(sn){ S.vals = Uint8Array.from(sn.vals); S.marks = Int16Array.from(sn.marks); S.elim = Int16Array.from(sn.elim); S.givens = Uint8Array.from(sn.givens); }
+function pushHistory(){ S.hist.push(snapshot()); if (S.hist.length > 300) S.hist.shift(); S.fut = []; }
+function undo(){ if (!S.hist.length) return; S.fut.push(snapshot()); restore(S.hist.pop()); afterChange({ keepHint: false }); status('Rückgängig.'); }
+function redo(){ if (!S.fut.length) return; S.hist.push(snapshot()); restore(S.fut.pop()); afterChange({ keepHint: false }); status('Wiederholt.'); }
+
+function save(){
+  try {
+    localStorage.setItem(KEY, JSON.stringify({ mode: S.mode, givens: Array.from(S.givens), vals: Array.from(S.vals), marks: Array.from(S.marks), elim: Array.from(S.elim),
+      auto: S.auto, solution: S.solution ? Array.from(S.solution) : null, unique: S.unique, level: S.level, showWrong: S.showWrong, elapsed: S.elapsed, done: S.done, genLevel: S.genLevel, trainerOn: S.trainer.on, score: S.trainer.score }));
+  } catch (e) { /* Speicher nicht verfügbar */ }
+}
+function load(){
+  try {
+    const raw = localStorage.getItem(KEY); if (!raw) return false;
+    const o = JSON.parse(raw); if (!o.vals || o.vals.length !== 81) return false;
+    S.mode = o.mode === 'enter' ? 'enter' : 'play'; S.givens = Uint8Array.from(o.givens); S.vals = Uint8Array.from(o.vals); S.marks = Int16Array.from(o.marks); S.elim = Int16Array.from(o.elim);
+    S.auto = !!o.auto; S.solution = o.solution ? Uint8Array.from(o.solution) : null; S.unique = o.unique !== false; S.level = o.level || 0; S.showWrong = !!o.showWrong; S.elapsed = o.elapsed || 0; S.done = !!o.done; S.genLevel = o.genLevel || 2;
+    if (o.trainerOn){ S.trainer.on = true; S.trainer.score = o.score || S.trainer.score; trainerAsk('Trainer fortgesetzt. Beginne mit Regel 1.'); }
+    return true;
+  } catch (e) { return false; }
+}
+
+/* Effektive Kandidaten: angezeigte Kandidaten; ohne Notizen alle möglichen */
+function computedCands(){ return computeCands(S.vals); }
+function displayCands(i, comp){ if (S.vals[i]) return 0; return S.auto ? (comp[i] & ~S.elim[i]) : S.marks[i]; }
+function effectiveCands(comp){
+  const eff = new Int16Array(81);
+  for (let i = 0; i < 81; i++){ if (S.vals[i]) continue; eff[i] = S.auto ? (comp[i] & ~S.elim[i]) : (S.marks[i] ? (S.marks[i] & comp[i]) : comp[i]); }
+  return eff;
+}
+function makeCtx(){ const comp = computedCands(); return { vals: Uint8Array.from(S.vals), cands: effectiveCands(comp), solution: S.unique ? S.solution : null }; }
+
+/* Analyse: Fehler zuerst, dann nächster logischer Schritt */
+function analyze(){
+  const conf = findConflicts(S.vals);
+  if (conf.details.length){
+    const d = conf.details[0];
+    return { kind: 'error', step: { name: 'Widerspruch auf dem Brett', level: 0, cells: d.cells, regionCells: UNITS[d.unit], placements: [], eliminations: [],
+      hint1: 'Auf dem Brett gibt es einen Widerspruch: Eine Ziffer kommt in einer Einheit doppelt vor. Korrigiere das zuerst.',
+      hint2: `Schau dir ${unitName(d.unit)} genau an.`,
+      explain: `In ${unitName(d.unit)} kommt die ${d.digit} mehrfach vor: ${fmtCells(d.cells)}. Mindestens einer dieser Einträge ist falsch.` } };
+  }
+  if (S.solution && S.unique){
+    const wrong = []; for (let i = 0; i < 81; i++) if (S.vals[i] && !S.givens[i] && S.vals[i] !== S.solution[i]) wrong.push(i);
+    if (wrong.length){
+      const c = wrong[0];
+      return { kind: 'error', step: { name: 'Falscher Eintrag', level: 0, cells: wrong, regionCells: UNITS[rowOf(c)], placements: [], eliminations: [],
+        hint1: `Mindestens ein Eintrag stimmt nicht mit der Lösung überein (${wrong.length} ${wrong.length === 1 ? 'Zelle' : 'Zellen'}). Prüfe deine Einträge, bevor du weitermachst.`,
+        hint2: `Ein Fehler liegt in Zeile ${rowOf(c) + 1}.`,
+        explain: `${wrong.length === 1 ? 'Der Eintrag' : 'Die Einträge'} ${fmtCells(wrong)} ${wrong.length === 1 ? 'ist' : 'sind'} falsch. Lösche ${wrong.length === 1 ? 'ihn' : 'sie'} und überlege neu.` } };
+    }
+    const comp = computedCands(); const eff = effectiveCands(comp);
+    const bad = []; for (let i = 0; i < 81; i++) if (!S.vals[i] && !(eff[i] & bit(S.solution[i]))) bad.push(i);
+    if (bad.length){
+      const c = bad[0];
+      return { kind: 'error', step: { name: 'Kandidat fälschlich gestrichen', level: 0, cells: bad, regionCells: UNITS[rowOf(c)], placements: [], eliminations: [],
+        hint1: `In ${bad.length === 1 ? 'einer Zelle' : bad.length + ' Zellen'} wurde ein Kandidat gestrichen, der noch möglich ist. Prüfe deine Notizen.`,
+        hint2: `Eine betroffene Zelle liegt in Zeile ${rowOf(c) + 1}.`,
+        explain: `In ${fmtCells(bad)} fehlt ein Kandidat, der noch möglich ist (in ${cellName(c)} ist es die ${S.solution[c]}). Setze die Kandidaten dieser Zelle zurück (${cellName(c)} anklicken und den Kandidaten wieder eintragen).` } };
+    }
+  }
+  if (S.vals.every(v => v)) return { kind: 'solved' };
+  const step = firstStep(makeCtx());
+  if (!step) return { kind: 'stuck' };
+  return { kind: 'step', step };
+}
+
+/* Schritt auf das Spielbrett anwenden */
+function applyStep(step){
+  pushHistory();
+  const comp = computedCands();
+  for (const e of step.eliminations){
+    if (S.auto) S.elim[e.cell] |= bit(e.digit);
+    else { if (!S.marks[e.cell]) S.marks[e.cell] = comp[e.cell]; S.marks[e.cell] &= ~bit(e.digit); }
+  }
+  for (const p of step.placements) placeDigit(p.cell, p.digit);
+}
+function placeDigit(i, d){
+  S.vals[i] = d; S.marks[i] = 0;
+  if (!S.auto) for (const p of PEERS[i]) S.marks[p] &= ~bit(d);
+}
+
+/* =====================================================================
+   Aktionen
+   ===================================================================== */
+function status(text, kind = ''){ const el = document.getElementById('status'); el.textContent = text; el.className = 'status ' + kind; }
+function afterChange(opts = {}){
+  if (!opts.keepHint) S.hint = null;
+  if (S.mode === 'enter' && S.validated){ S.validated = null; const vb = document.getElementById('validateBox'); vb.textContent = 'Geändert – bitte erneut prüfen.'; vb.className = 'hintbox'; }
+  if (S.mode === 'play'){
+    const wasDone = S.done;
+    S.done = S.vals.every(v => v) && findConflicts(S.vals).cells.size === 0;
+    if (S.done && !wasDone){ status(`Gelöst in ${fmtTime(S.elapsed)}. Gratulation!`, 'ok'); if (S.trainer.on){ trainerMsg('Das Sudoku ist gelöst. Sehr gut gemacht!', 'good'); } }
+    if (S.trainer.on && !opts.fromTrainer) trainerOnBoardChange();
+  }
+  save(); render();
+}
+function enterDigit(d){
+  const i = S.sel; if (i < 0){ if (d) S.hlDigit = S.hlDigit === d ? 0 : d; render(); return; }
+  if (S.mode === 'enter'){ pushHistory(); S.vals[i] = d; S.givens[i] = d ? 1 : 0; S.marks[i] = 0; afterChange(); return; }
+  if (S.givens[i]){ status('Vorgegebene Ziffern können nicht geändert werden.', 'warn'); return; }
+  if (!d){ if (!S.vals[i] && !S.marks[i] && !(S.auto && S.elim[i])) return; pushHistory(); S.vals[i] = 0; S.marks[i] = 0; S.elim[i] = 0; afterChange(); return; }
+  if (S.pencil){ toggleCand(i, d); return; }
+  if (S.vals[i] === d){ pushHistory(); S.vals[i] = 0; afterChange(); return; }
+  if (S.trainer.on && !trainerAllowsDigit(i, d)) return;
+  const conflictPeer = PEERS[i].find(p => S.vals[p] === d);
+  pushHistory(); placeDigit(i, d);
+  if (conflictPeer !== undefined) status(`Achtung: Die ${d} steht bereits in ${cellName(conflictPeer)}.`, 'err');
+  else if (S.showWrong && S.solution && S.unique && S.solution[i] !== d) status('Dieser Eintrag stimmt nicht mit der Lösung überein.', 'err');
+  else status('');
+  afterChange();
+}
+function toggleCand(i, d){
+  if (S.vals[i] || S.givens[i]) return;
+  const comp = computedCands();
+  if (S.auto){ if (!(comp[i] & bit(d))){ status(`Die ${d} ist in ${cellName(i)} nicht möglich (steht bereits in Zeile, Spalte oder Block).`, 'warn'); return; } pushHistory(); S.elim[i] ^= bit(d); }
+  else { pushHistory(); S.marks[i] ^= bit(d); }
+  afterChange();
+}
+function setAuto(on){
+  const comp = computedCands();
+  if (on && !S.auto){ for (let i = 0; i < 81; i++) S.elim[i] = (!S.vals[i] && S.marks[i]) ? (comp[i] & ~S.marks[i]) : 0; }
+  if (!on && S.auto){ for (let i = 0; i < 81; i++) S.marks[i] = S.vals[i] ? 0 : (comp[i] & ~S.elim[i]); }
+  S.auto = on; afterChange({ keepHint: true });
+}
+function fillCands(){ pushHistory(); const comp = computedCands(); if (S.auto) S.elim.fill(0); else for (let i = 0; i < 81; i++) S.marks[i] = S.vals[i] ? 0 : comp[i]; afterChange(); status(S.auto ? 'Alle Streichungen zurückgesetzt.' : 'Alle möglichen Kandidaten eingetragen.'); }
+function clearCands(){ pushHistory(); if (S.auto){ setAuto(false); } S.marks.fill(0); S.elim.fill(0); afterChange(); status('Kandidaten gelöscht.'); }
+function checkNow(){
+  const conf = findConflicts(S.vals);
+  let wrong = 0; if (S.solution && S.unique) for (let i = 0; i < 81; i++) if (S.vals[i] && !S.givens[i] && S.vals[i] !== S.solution[i]) wrong++;
+  const filled = S.vals.filter(v => v).length;
+  if (conf.cells.size) status(`${conf.details.length} Widerspruch/Widersprüche (doppelte Ziffern) gefunden – rot markiert.`, 'err');
+  else if (wrong) status(`${wrong} Eintrag/Einträge stimmen nicht mit der Lösung überein.${S.showWrong ? '' : ' Aktiviere «Fehler gegen die Lösung markieren», um sie zu sehen.'}`, 'err');
+  else if (filled === 81) status('Alles richtig – das Sudoku ist gelöst!', 'ok');
+  else status(`Bisher alles korrekt (${filled} von 81 Zellen gefüllt).`, 'ok');
+  render();
+}
+function stepSolve(){
+  const a = analyze();
+  if (a.kind === 'solved'){ status('Das Sudoku ist bereits gelöst.', 'ok'); return; }
+  if (a.kind === 'stuck'){ status('Kein logischer Schritt gefunden.', 'warn'); return; }
+  S.hint = { step: a.step, level: 4, kind: a.kind }; showTab('hint');
+  if (a.kind === 'error'){ render(); status('Zuerst muss ein Fehler korrigiert werden.', 'err'); return; }
+  applyStep(a.step); afterChange({ keepHint: true });
+  S.hint.applied = true; render();
+  status(`Schritt ausgeführt: ${a.step.name}.`, 'ok');
+}
+function singlesSolve(){
+  let n = 0; pushHistory();
+  for (let guard = 0; guard < 81; guard++){
+    const a = analyze(); if (a.kind !== 'step' || a.step.level > 2) break;
+    for (const p of a.step.placements) placeDigit(p.cell, p.digit); n++;
+  }
+  if (n) afterChange(); else S.hist.pop();
+  status(n ? `${n} Einer eingetragen.` : 'Keine Einer (Stufe 1–2) gefunden.', n ? 'ok' : 'warn');
+}
+function solveAll(){
+  let sol = S.solution;
+  if (!sol || !S.unique){ const r = solveFast(S.vals, 1); if (!r.count){ status('Keine Lösung möglich (Widerspruch im Raster).', 'err'); return; } sol = r.solution; }
+  if (!confirm('Das ganze Sudoku automatisch lösen?')) return;
+  pushHistory(); S.vals = Uint8Array.from(sol); S.marks.fill(0); S.elim.fill(0); afterChange(); status('Sudoku vollständig gelöst.', 'ok');
+}
+function resetPuzzle(){
+  if (!confirm('Alle eigenen Einträge löschen und von vorne beginnen?')) return;
+  pushHistory(); for (let i = 0; i < 81; i++){ if (!S.givens[i]) S.vals[i] = 0; } S.marks.fill(0); S.elim.fill(0); S.elapsed = 0; S.done = false;
+  if (S.trainer.on) trainerAsk('Neustart. Beginne wieder bei Regel 1.');
+  afterChange(); status('Zurückgesetzt.');
+}
+
+/* ---- Hinweise ---- */
+function hintNext(full = false){
+  if (S.mode === 'enter'){ status('Hinweise gibt es im Spielmodus.', 'warn'); return; }
+  if (!S.hint || S.hint.applied){
+    const a = analyze();
+    if (a.kind === 'solved'){ S.hint = null; status('Das Sudoku ist gelöst.', 'ok'); render(); return; }
+    if (a.kind === 'stuck'){ S.hint = { step: { name: 'Kein Schritt gefunden', level: 0, cells: [], regionCells: [], placements: [], eliminations: [], hint1: 'Es wurde kein logischer Schritt gefunden. Prüfe, ob die Kandidaten korrekt sind, oder nutze «Komplett lösen».', hint2: '', explain: '' }, level: 1, kind: 'stuck' }; showTab('hint'); render(); return; }
+    S.hint = { step: a.step, level: full ? 4 : 1, kind: a.kind };
+  } else if (full) S.hint.level = 4;
+  else S.hint.level = Math.min(4, S.hint.level + 1);
+  showTab('hint'); render();
+}
+function hintApply(){
+  if (!S.hint || S.hint.kind !== 'step' || S.hint.level < 4 || S.hint.applied) return;
+  applyStep(S.hint.step); S.hint.applied = true; afterChange({ keepHint: true }); status(`Angewendet: ${S.hint.step.name}.`, 'ok');
+  if (S.trainer.on) trainerAsk('Schritt angewendet. Beginne wieder bei Regel 1.');
+}
+function hintText(h){
+  const st = h.step; const lvl = h.level;
+  const techLine = h.kind === 'step' ? `<span class="tech">${st.name}</span> <span class="muted">(Stufe ${st.level}: ${LEVELS[st.level]})</span>` : `<span class="tech">${st.name}</span>`;
+  let body = '';
+  if (h.kind === 'step'){
+    if (lvl === 1) body = `Hier hilft die Technik <b>${st.name}</b>. Versuche zuerst selbst, sie anzuwenden.<br><span class="muted">${TECH[st.tech].desc}</span>`;
+    if (lvl === 2) body = `Technik: <b>${st.name}</b>.<br>${st.hint2}${st.regionCells.length ? '<br><span class="muted">Der Bereich ist im Raster leicht hervorgehoben.</span>' : ''}`;
+    if (lvl === 3) body = `Technik: <b>${st.name}</b>.<br>${st.hint2}<br>Die beteiligten Zellen sind gelb markiert: <b>${fmtCells(st.cells)}</b>. Was folgt daraus?`;
+    if (lvl === 4){
+      body = `${st.explain}`;
+      if (st.placements.length) body += `<br><b>Ergebnis:</b> ${st.placements.map(p => `${cellName(p.cell)} = ${p.digit}`).join(', ')}`;
+      else if (st.eliminations.length) body += `<br><b>Ergebnis:</b> Streichen von ${fmtElims(st.eliminations)}`;
+      if (h.applied) body += `<br><span class="muted">Dieser Schritt wurde angewendet.</span>`;
+    }
+  } else {
+    body = lvl === 1 ? st.hint1 : lvl === 2 ? `${st.hint1}<br>${st.hint2}` : lvl === 3 ? `${st.hint2}<br>Die betroffenen Zellen sind markiert.` : st.explain;
+  }
+  return `<div class="lvl">Hinweisstufe ${lvl} von 4</div><div>${techLine}</div><div style="margin-top:.35rem">${body}</div>`;
+}
+
+/* ---- Erzeugen ---- */
+async function generate(level){
+  if (S.generating) return;
+  const inProgress = S.mode === 'play' && !S.done && Array.from(S.vals).some((v, i) => v && !S.givens[i]);
+  if (inProgress && !confirm('Das aktuelle Sudoku ist noch nicht gelöst. Trotzdem ein neues erzeugen?')) return;
+  S.generating = true; S.genLevel = level;
+  const btn = document.getElementById('genBtn'); btn.disabled = true;
+  const info = document.getElementById('genInfo');
+  const t0 = performance.now(); const budget = 20000;
+  let best = null, attempt = 0;
+  try {
+    while (true){
+      attempt++;
+      info.innerHTML = `<span class="spinner"></span> Erzeuge Stufe ${level} (${LEVELS[level]}) … Versuch ${attempt}`;
+      await new Promise(r => setTimeout(r, 0));
+      const full = generateFullGrid();
+      const order = shuffle(Array.from({ length: 41 }, (_, i) => i));
+      const puzzle = await carveAsync(full, level, order);
+      const r = rateLevel(puzzle, full, 6);
+      const cand = { puzzle, solution: full, rating: r.level };
+      if (r.level === level){ best = cand; break; }
+      if (!best || Math.abs(r.level - level) < Math.abs(best.rating - level)) best = cand;
+      if (performance.now() - t0 > budget){ best.approx = true; break; }
+    }
+  } finally { S.generating = false; btn.disabled = false; }
+  startPuzzle(best.puzzle, best.solution, best.rating);
+  const givens = best.puzzle.filter(v => v).length;
+  info.textContent = best.approx ? `Zeitlimit erreicht: Stufe ${best.rating} statt ${level} (${givens} Vorgaben).` : `Fertig: Stufe ${best.rating} (${LEVELS[best.rating]}), ${givens} Vorgaben.`;
+  status(best.approx ? `Neues Sudoku, Stufe ${best.rating} (gewünscht war ${level}).` : `Neues Sudoku der Stufe ${best.rating} (${LEVELS[best.rating]}).`, 'ok');
+}
+async function carveAsync(full, level, order){
+  const p = Uint8Array.from(full); let n = 0;
+  for (const i of order){
+    const j = 80 - i; const a = p[i], b = p[j];
+    if (!a && !b) continue;
+    p[i] = 0; p[j] = 0;
+    let ok = solveFast(p, 2).count === 1;
+    if (ok && level < 6) ok = !rateLevel(p, full, level).exceeded;
+    if (!ok){ p[i] = a; p[j] = b; }
+    if (++n % 6 === 0) await new Promise(r => setTimeout(r, 0));
+  }
+  return p;
+}
+function startPuzzle(puzzle, solution, level){
+  S.mode = 'play'; S.givens = Uint8Array.from(puzzle, v => v ? 1 : 0); S.vals = Uint8Array.from(puzzle); S.marks = new Int16Array(81); S.elim = new Int16Array(81);
+  S.solution = solution ? Uint8Array.from(solution) : null; S.unique = !!solution; S.level = level || 0; S.hist = []; S.fut = []; S.hint = null; S.sel = -1; S.hlDigit = 0; S.elapsed = 0; S.done = false; S.enterBackup = null;
+  if (S.trainer.on){ S.trainer.score = { ok: 0, bad: 0, shown: 0 }; if (!S.auto) setAuto(true); trainerAsk('Neues Sudoku. Beginne mit Regel 1.'); }
+  save(); render();
+}
+
+/* ---- Eingabemodus ---- */
+function enterMode(fromCurrent){
+  if (S.mode !== 'enter') S.enterBackup = { givens: Array.from(S.givens), vals: Array.from(S.vals), marks: Array.from(S.marks), elim: Array.from(S.elim), solution: S.solution ? Array.from(S.solution) : null, unique: S.unique, level: S.level, elapsed: S.elapsed, done: S.done };
+  S.mode = 'enter'; S.hint = null; S.hist = []; S.fut = []; S.sel = -1;
+  if (fromCurrent){ for (let i = 0; i < 81; i++){ S.vals[i] = S.givens[i] ? S.vals[i] : 0; } }
+  else { S.vals.fill(0); S.givens.fill(0); }
+  S.marks.fill(0); S.elim.fill(0);
+  if (S.trainer.on) trainerStop();
+  document.getElementById('validateBox').textContent = 'Noch nicht geprüft.'; document.getElementById('validateBox').className = 'hintbox';
+  showTab('enter'); save(); render(); status('Eingabemodus: Klicke eine Zelle an und tippe die Vorgabe.');
+}
+function importText(){
+  const g = parseGrid(document.getElementById('importText').value);
+  if (!g){ status('Der Text muss genau 81 Felder enthalten (Ziffern 1–9, leer als ., 0 oder _).', 'err'); return; }
+  if (S.mode !== 'enter') enterMode(false);
+  pushHistory(); S.vals = Uint8Array.from(g); S.givens = Uint8Array.from(g, v => v ? 1 : 0); afterChange(); status('Text übernommen. Jetzt prüfen.', 'ok');
+}
+function validatePuzzle(){
+  const box = document.getElementById('validateBox');
+  const givens = S.vals.filter(v => v).length;
+  const conf = findConflicts(S.vals);
+  let html = `<div><b>${givens}</b> Vorgaben.</div>`;
+  let cls = 'hintbox';
+  S.validated = null;
+  if (conf.details.length){
+    html += `<div>Widersprüche: ${conf.details.map(d => `${unitName(d.unit)} enthält die ${d.digit} mehrfach (${fmtCells(d.cells)})`).join('; ')}.</div><div><b>Ungültig.</b></div>`; cls += ' error';
+  } else if (givens < 17){
+    html += `<div>Ein eindeutig lösbares Sudoku braucht mindestens 17 Vorgaben.</div><div><b>Ungültig (mehrdeutig).</b></div>`; cls += ' error';
+  } else {
+    const r = solveFast(S.vals, 2);
+    if (r.count === 0){ html += `<div><b>Keine Lösung:</b> Die Vorgaben widersprechen sich.</div>`; cls += ' error'; }
+    else if (r.count >= 2){ html += `<div><b>Mehrdeutig:</b> Es gibt mindestens zwei Lösungen. Ein gültiges Sudoku hat genau eine Lösung.</div><div class="muted">Du kannst es trotzdem spielen; Fehlerprüfung gegen die Lösung und Versuch-und-Irrtum-Hinweise sind dann nicht verfügbar.</div>`; cls += ' error'; S.validated = { solution: null, unique: false, level: 0 }; }
+    else {
+      const rate = rateLevel(S.vals, r.solution, 6);
+      const techs = Object.keys(rate.used).filter(t => TECH[t].level >= 3).map(t => TECH[t].name);
+      html += `<div><b>Gültig:</b> genau eine Lösung.</div><div>Geschätzte Schwierigkeit: <b>Stufe ${rate.level} (${LEVELS[rate.level]})</b>.</div>`;
+      if (techs.length) html += `<div class="muted">Benötigte Techniken ab Stufe 3: ${techs.join(', ')}.</div>`;
+      cls += ' ok'; S.validated = { solution: r.solution, unique: true, level: rate.level };
+    }
+  }
+  box.innerHTML = html; box.className = cls; render();
+}
+function adoptPuzzle(){
+  if (S.mode !== 'enter'){ status('Zuerst den Eingabemodus starten.', 'warn'); return; }
+  if (!S.validated) validatePuzzle();
+  if (!S.validated){ status('Das Sudoku ist ungültig und kann nicht gespielt werden.', 'err'); return; }
+  const v = S.validated; S.validated = null;
+  startPuzzle(S.vals, v.solution, v.level);
+  showTab('play'); status(v.unique ? `Sudoku übernommen (Stufe ${v.level}). Viel Erfolg!` : 'Mehrdeutiges Sudoku übernommen (ohne Lösungsprüfung).', v.unique ? 'ok' : 'warn');
+}
+function cancelEnter(){
+  if (S.mode !== 'enter') return;
+  const b = S.enterBackup;
+  if (b){ S.givens = Uint8Array.from(b.givens); S.vals = Uint8Array.from(b.vals); S.marks = Int16Array.from(b.marks); S.elim = Int16Array.from(b.elim); S.solution = b.solution ? Uint8Array.from(b.solution) : null; S.unique = b.unique; S.level = b.level; S.elapsed = b.elapsed; S.done = b.done; }
+  S.mode = 'play'; S.enterBackup = null; S.hist = []; S.fut = []; S.validated = null; showTab('play'); save(); render(); status('Eingabe abgebrochen.');
+}
+
+/* ---- Trainer ---- */
+function trainerMsg(msg, kind = 'info'){ S.trainer.msg = msg; S.trainer.msgKind = kind; }
+function trainerAsk(msg){ S.trainer.rung = 0; S.trainer.phase = 'ask'; S.trainer.steps = []; S.trainer.step = null; S.trainer.showHow = false; if (msg) trainerMsg(msg, 'info'); }
+function trainerStart(){
+  if (S.mode === 'enter'){ status('Der Trainer ist nur im Spielmodus verfügbar.', 'warn'); return; }
+  S.trainer.on = true; S.trainer.score = { ok: 0, bad: 0, shown: 0 };
+  if (!S.auto) setAuto(true);
+  trainerAsk('Willkommen im Trainer. Arbeite die Regeln immer in dieser Reihenfolge ab und beginne nach jeder Änderung wieder bei Regel 1.');
+  showTab('trainer'); afterChange({ fromTrainer: true, keepHint: true });
+}
+function trainerStop(){ S.trainer.on = false; S.trainer.phase = 'ask'; S.hint = null; save(); render(); }
+function trainerFindSteps(){ const rung = RUNGS[S.trainer.rung]; return allSteps(makeCtx(), rung.techs, 60); }
+function trainerBoardOk(){
+  const a = analyze();
+  if (a.kind === 'error'){ S.hint = { step: a.step, level: 4, kind: 'error' }; trainerMsg(a.step.explain, 'bad'); return false; }
+  if (a.kind === 'solved'){ trainerMsg('Das Sudoku ist gelöst. Sehr gut gemacht!', 'good'); S.trainer.phase = 'done'; return false; }
+  return true;
+}
+function trainerAnswer(yes){
+  const T = S.trainer;
+  if (!trainerBoardOk()){ render(); return; }
+  const rung = RUNGS[T.rung];
+  T.steps = trainerFindSteps();
+  const exists = T.steps.length > 0;
+  if (yes){
+    if (exists){
+      T.phase = 'locate';
+      const placing = T.steps.some(s => s.placements.length);
+      trainerMsg(placing ? 'Gut. Klicke jetzt auf die Zelle, in die du eine Ziffer eintragen kannst.' : 'Gut. Klicke auf eine der Zellen, die zu dem Muster gehören (oder eine Zelle, in der etwas gestrichen werden kann).', 'info');
+    } else {
+      T.score.bad++;
+      trainerMsg(`Hier greift «${rung.title}» tatsächlich nicht. Prüfe das nochmals: ${rung.how} Wenn du sicher bist, antworte mit «Nein».`, 'bad');
+    }
+  } else {
+    if (!exists){
+      T.score.ok++;
+      if (T.rung < RUNGS.length - 1){ T.rung++; T.showHow = false; trainerMsg(`Richtig, diese Regel ist hier nicht anwendbar. Weiter mit Regel ${T.rung + 1}: ${RUNGS[T.rung].title}.`, 'good'); }
+      else trainerMsg('Richtig. Damit sind alle Regeln durch.', 'good');
+    } else {
+      T.score.bad++;
+      trainerMsg(`Schau nochmals genauer hin: Es gibt hier ${T.steps.length === 1 ? 'eine Möglichkeit' : T.steps.length + ' Möglichkeiten'} für «${rung.title}». Tipp: ${T.steps[0].hint2}`, 'bad');
+      S.hint = { step: T.steps[0], level: 2, kind: 'step' };
+    }
+  }
+  save(); render();
+}
+function trainerSkip(){ const T = S.trainer; if (T.rung < RUNGS.length - 1){ T.rung++; T.phase = 'ask'; T.showHow = false; trainerMsg(`Übersprungen. Regel ${T.rung + 1}: ${RUNGS[T.rung].title}.`, 'info'); } save(); render(); }
+function trainerReveal(){
+  const T = S.trainer;
+  if (!trainerBoardOk()){ render(); return; }
+  if (!T.steps.length) T.steps = trainerFindSteps();
+  if (!T.steps.length){ trainerMsg('Diese Regel ist hier nicht anwendbar. Antworte mit «Nein», um weiterzugehen.', 'info'); render(); return; }
+  T.score.shown++; T.step = T.steps[0]; T.phase = 'reveal';
+  S.hint = { step: T.step, level: 4, kind: 'step' };
+  trainerMsg(`${T.step.name}: ${T.step.explain}`, 'info');
+  save(); render();
+}
+function trainerApply(){
+  const T = S.trainer; if (!T.step) return;
+  applyStep(T.step); afterChange({ fromTrainer: true });
+  trainerAsk(`Angewendet (${T.step.name}). Das Brett hat sich geändert, also beginnen wir wieder bei Regel 1.`);
+  save(); render();
+}
+function trainerCellClick(i){
+  const T = S.trainer; if (T.phase !== 'locate') return;
+  const match = T.steps.find(s => s.placements.some(p => p.cell === i) || s.cells.includes(i) || s.eliminations.some(e => e.cell === i));
+  if (!match){ T.score.bad++; trainerMsg(`${cellName(i)} gehört zu keinem Fund dieser Regel. Versuch es nochmals oder lass es dir zeigen.`, 'bad'); render(); return; }
+  T.step = match; T.score.ok++;
+  if (match.placements.length){ T.phase = 'digit'; S.hint = { step: match, level: 3, kind: 'step' }; trainerMsg(`Richtig, ${cellName(match.placements[0].cell)} ist eine passende Zelle. Welche Ziffer gehört hinein? Gib sie ein.`, 'good'); }
+  else { T.phase = 'elim'; S.hint = { step: match, level: 4, kind: 'step' }; trainerMsg(`Richtig! ${match.explain} Streiche die Kandidaten selbst (Kandidaten-Modus) oder klicke «Anwenden».`, 'good'); }
+  render();
+}
+/* Ziffer im Trainer: falsche Einträge werden abgelehnt und erklärt */
+function trainerAllowsDigit(i, d){
+  const T = S.trainer;
+  const conflictPeer = PEERS[i].find(p => S.vals[p] === d);
+  if (conflictPeer !== undefined){ T.score.bad++; trainerMsg(`Die ${d} kann nicht in ${cellName(i)} stehen: Sie steht bereits in ${cellName(conflictPeer)} (gleiche ${rowOf(i) === rowOf(conflictPeer) ? 'Zeile' : colOf(i) === colOf(conflictPeer) ? 'Spalte' : 'Block'}).`, 'bad'); render(); return false; }
+  if (S.solution && S.unique && S.solution[i] !== d){ T.score.bad++; trainerMsg(`Die ${d} ist nicht die richtige Ziffer für ${cellName(i)}. Überlege, welche Kandidaten dort wirklich noch möglich sind.`, 'bad'); render(); return false; }
+  if (T.phase === 'digit' && T.step){
+    const p = T.step.placements[0];
+    if (i !== p.cell){ trainerMsg(`Die Ziffer ist zwar korrekt, aber wir arbeiten gerade an ${cellName(p.cell)}. Der Eintrag wird trotzdem übernommen.`, 'info'); }
+  }
+  return true;
+}
+function trainerOnBoardChange(){
+  const T = S.trainer;
+  if (T.phase === 'done') return;
+  if (T.phase === 'elim' && T.step){
+    const comp = computedCands(); const eff = effectiveCands(comp);
+    const done = T.step.eliminations.every(e => S.vals[e.cell] || !(eff[e.cell] & bit(e.digit)));
+    if (done){ T.score.ok++; trainerAsk(`Alle Streichungen sind erledigt (${T.step.name}). Zurück zu Regel 1.`); S.hint = null; return; }
+    return;
+  }
+  const placedNow = S.vals.filter(v => v).length;
+  if (T.lastFilled !== undefined && placedNow > T.lastFilled){
+    trainerAsk(T.phase === 'digit' ? 'Sehr gut, richtig eingetragen! Das Brett hat sich geändert, also beginnen wir wieder bei Regel 1.' : 'Eintrag korrekt. Nach jeder Änderung beginnen wir wieder bei Regel 1.');
+    S.hint = null;
+  }
+  T.lastFilled = placedNow;
+}
+function renderTrainer(){
+  const T = S.trainer; const panel = document.getElementById('trainerPanel');
+  const btn = document.getElementById('trainerToggle'); btn.textContent = T.on ? 'Trainer beenden' : 'Trainer starten'; btn.className = T.on ? '' : 'primary';
+  document.getElementById('trainerNote').textContent = T.on ? 'Trainer aktiv: Falsche Ziffern werden abgelehnt.' : '';
+  if (!T.on){ panel.innerHTML = ''; return; }
+  T.lastFilled = S.vals.filter(v => v).length;
+  const rung = RUNGS[T.rung];
+  let html = `<div class="card"><h3>Regel ${T.rung + 1} von ${RUNGS.length}: ${rung.title}</h3><p>${rung.q}</p>`;
+  if (T.showHow) html += `<p class="muted"><b>So prüfst du das:</b> ${rung.how}</p>`;
+  html += `<div class="row">`;
+  if (T.phase === 'ask'){
+    html += `<button class="primary" data-act="tYes">Ja, gefunden</button><button data-act="tNo">Nein, nicht anwendbar</button><button data-act="tShow">Zeigen</button><button class="small" data-act="tHow">${T.showHow ? 'Erklärung ausblenden' : 'Regel erklären'}</button><button class="small" data-act="tSkip">Überspringen</button>`;
+  } else if (T.phase === 'locate'){
+    html += `<span class="muted">Klicke im Raster auf eine passende Zelle.</span><button data-act="tShow">Zeigen</button><button class="small" data-act="tBack">Zurück</button>`;
+  } else if (T.phase === 'digit'){
+    html += `<span class="muted">Gib die Ziffer in die markierte Zelle ein.</span><button data-act="tShow">Zeigen</button><button class="small" data-act="tBack">Zurück</button>`;
+  } else if (T.phase === 'elim'){
+    html += `<button class="primary" data-act="tApply">Anwenden</button><button class="small" data-act="tBack">Zurück</button>`;
+  } else if (T.phase === 'reveal'){
+    html += `<button class="primary" data-act="tApply">Anwenden</button><button class="small" data-act="tBack">Selbst ausführen</button>`;
+  } else if (T.phase === 'done'){
+    html += `<span class="muted">Gelöst. Erzeuge ein neues Sudoku, um weiterzutrainieren.</span>`;
+  }
+  html += `</div>`;
+  if (T.msg) html += `<div class="feedback ${T.msgKind}">${T.msg}</div>`;
+  html += `<div class="score"><span>Richtig: <b>${T.score.ok}</b></span><span>Fehlversuche: <b>${T.score.bad}</b></span><span>Gezeigt: <b>${T.score.shown}</b></span></div></div>`;
+  html += `<div class="card"><h3>Regelleiter</h3><ol class="ladder">`;
+  RUNGS.forEach((r, idx) => { html += `<li class="${idx === T.rung ? 'cur' : idx < T.rung ? 'done' : ''}">${idx + 1}. ${r.title}</li>`; });
+  html += `</ol><p class="muted">Nach jedem Eintrag oder jeder Streichung startet die Prüfung wieder bei Regel 1, weil sich durch jede Änderung neue einfache Schritte ergeben können.</p></div>`;
+  panel.innerHTML = html;
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+const cellEls = [];
+function buildGrid(){
+  const grid = document.getElementById('grid'); grid.innerHTML = '';
+  for (let i = 0; i < 81; i++){
+    const el = document.createElement('div'); el.className = 'cell'; el.dataset.i = i; el.setAttribute('role', 'gridcell');
+    if (colOf(i) % 3 === 2 && colOf(i) !== 8) el.classList.add('br');
+    if (rowOf(i) % 3 === 2 && rowOf(i) !== 8) el.classList.add('bb');
+    const val = document.createElement('span'); val.className = 'val'; el.appendChild(val);
+    const cands = document.createElement('div'); cands.className = 'cands';
+    for (let d = 1; d <= 9; d++){ const s = document.createElement('span'); s.className = 'cand'; s.textContent = d; cands.appendChild(s); }
+    el.appendChild(cands);
+    el.addEventListener('click', () => onCellClick(i));
+    grid.appendChild(el); cellEls.push(el);
+  }
+  const np = document.getElementById('numpad');
+  for (let d = 1; d <= 9; d++){ const b = document.createElement('button'); b.dataset.digit = d; b.innerHTML = `${d}<span class="cnt"></span>`; b.addEventListener('click', () => enterDigit(d)); np.appendChild(b); }
+  const lp = document.getElementById('levelPick');
+  for (let l = 1; l <= 6; l++){ const lab = document.createElement('label'); lab.innerHTML = `<input type="radio" name="lvl" value="${l}"> ${l} · ${LEVELS[l]}`; lab.querySelector('input').addEventListener('change', () => { S.genLevel = l; render(); }); lp.appendChild(lab); }
+  const gl = document.getElementById('glossary');
+  gl.innerHTML = ORDER.map(t => `<dt>${TECH[t].name} <span class="badge">Stufe ${TECH[t].level}</span></dt><dd>${TECH[t].desc}</dd>`).join('');
+}
+function onCellClick(i){
+  S.sel = i; S.hlDigit = 0;
+  if (S.mode === 'play' && S.trainer.on && S.trainer.phase === 'locate') trainerCellClick(i);
+  render();
+}
+function activeHighlight(){ return S.hint; }
+function render(){
+  const comp = computedCands();
+  const conf = findConflicts(S.vals).cells;
+  const selV = S.sel >= 0 ? S.vals[S.sel] : 0;
+  const hl = activeHighlight();
+  const hCells = new Set(), rCells = new Set(), places = new Map(), elims = new Map(), hlCands = new Map();
+  if (hl && hl.step){
+    const st = hl.step;
+    if (hl.level >= 2) st.regionCells.forEach(c => rCells.add(c));
+    if (hl.level >= 3 || hl.kind === 'error' && hl.level >= 3){ st.cells.forEach(c => hCells.add(c)); }
+    if (hl.level >= 3 && st.digits && hl.kind === 'step') st.cells.forEach(c => { let m = 0; for (const d of st.digits) m |= bit(d); hlCands.set(c, m); });
+    if (hl.level >= 4 && !hl.applied){ st.placements.forEach(p => places.set(p.cell, p.digit)); st.eliminations.forEach(e => elims.set(e.cell, (elims.get(e.cell) || 0) | bit(e.digit))); }
+  }
+  for (let i = 0; i < 81; i++){
+    const el = cellEls[i]; const v = S.vals[i];
+    let cls = 'cell';
+    if (colOf(i) % 3 === 2 && colOf(i) !== 8) cls += ' br';
+    if (rowOf(i) % 3 === 2 && rowOf(i) !== 8) cls += ' bb';
+    if (S.givens[i] && S.mode === 'play') cls += ' given';
+    if (S.mode === 'enter' && v) cls += ' given';
+    if (S.sel >= 0 && i !== S.sel && sees(i, S.sel)) cls += ' peer';
+    if (rCells.has(i)) cls += ' region';
+    if ((selV && v === selV) || (S.hlDigit && v === S.hlDigit)) cls += ' same';
+    if (hCells.has(i)) cls += ' hint';
+    if (places.has(i)) cls += ' place';
+    if (S.showWrong && S.mode === 'play' && S.solution && S.unique && v && !S.givens[i] && v !== S.solution[i]) cls += ' wrong';
+    if (hl && hl.kind === 'error' && hl.level >= 3 && hl.step.cells.includes(i)) cls += ' wrong';
+    if (conf.has(i)) cls += ' conflict';
+    if (i === S.sel) cls += ' sel';
+    el.className = cls;
+    const valEl = el.firstChild;
+    if (v){ valEl.textContent = v; valEl.className = 'val'; }
+    else if (places.has(i)){ valEl.textContent = places.get(i); valEl.className = 'val preview'; }
+    else { valEl.textContent = ''; valEl.className = 'val'; }
+    const disp = v || places.has(i) ? 0 : displayCands(i, comp);
+    const em = elims.get(i) || 0, hm = hlCands.get(i) || 0;
+    const cEls = el.lastChild.children;
+    for (let d = 1; d <= 9; d++){
+      const s = cEls[d - 1]; let c = 'cand';
+      if (!v && !places.has(i)){
+        if (em & bit(d)) c += ' elim';
+        else if (disp & bit(d)){ c += ' on'; if (hm & bit(d)) c += ' hl'; }
+        else if (S.hlDigit === d && (disp & bit(d))) c += ' on';
+      }
+      s.className = c;
+    }
+  }
+  // Ziffernblock
+  const counts = new Array(10).fill(0); for (let i = 0; i < 81; i++) if (S.vals[i]) counts[S.vals[i]]++;
+  document.querySelectorAll('#numpad button').forEach(b => { const d = +b.dataset.digit; b.querySelector('.cnt').textContent = 9 - counts[d] > 0 ? 9 - counts[d] : ''; b.classList.toggle('done', counts[d] >= 9); b.classList.toggle('pencil-on', S.pencil); });
+  document.getElementById('pencilBtn').classList.toggle('active', S.pencil);
+  document.getElementById('autoCands').checked = S.auto;
+  document.getElementById('showWrong').checked = S.showWrong;
+  document.querySelectorAll('#levelPick label').forEach((lab, idx) => { lab.classList.toggle('sel', idx + 1 === S.genLevel); lab.querySelector('input').checked = idx + 1 === S.genLevel; });
+  document.getElementById('modeBadge').textContent = S.mode === 'enter' ? 'Eingabemodus' : S.trainer.on ? 'Trainer' : 'Spiel';
+  const lb = document.getElementById('levelBadge'); lb.textContent = S.mode === 'play' && S.level ? `Stufe ${S.level} · ${LEVELS[S.level]}` : ''; lb.style.display = lb.textContent ? '' : 'none';
+  document.getElementById('exportStr').value = gridToString(Array.from(S.vals, (v, i) => (S.mode === 'enter' ? v : (S.givens[i] ? v : 0))));
+  // Hinweisbox
+  const hb = document.getElementById('hintBox'); const ab = document.getElementById('hintApplyBtn');
+  if (hl){ hb.innerHTML = hintText(hl); hb.className = 'hintbox' + (hl.kind === 'error' ? ' error' : hl.level >= 4 ? ' ok' : ''); ab.disabled = !(hl.kind === 'step' && hl.level >= 4 && !hl.applied); }
+  else { hb.textContent = S.mode === 'enter' ? 'Hinweise gibt es im Spielmodus.' : 'Noch kein Hinweis angefordert. Klicke auf «Hinweis», um Stufe 1 zu erhalten.'; hb.className = 'hintbox'; ab.disabled = true; }
+  document.getElementById('adoptBtn').disabled = S.mode !== 'enter';
+  renderTrainer();
+  document.getElementById('timer').textContent = fmtTime(S.elapsed);
+}
+function fmtTime(s){ const m = Math.floor(s / 60), r = s % 60; return `${String(m).padStart(2, '0')}:${String(r).padStart(2, '0')}`; }
+function showTab(name){
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tabpane').forEach(p => p.classList.toggle('active', p.id === 'tab-' + name));
+}
+
+/* =====================================================================
+   Ereignisse
+   ===================================================================== */
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.tab'); if (tab){ showTab(tab.dataset.tab); return; }
+  const a = e.target.closest('[data-act]'); if (!a) return;
+  const act = a.dataset.act;
+  switch (act){
+    case 'undo': undo(); break;
+    case 'redo': redo(); break;
+    case 'pencil': S.pencil = !S.pencil; render(); break;
+    case 'erase': enterDigit(0); break;
+    case 'hint': hintNext(false); break;
+    case 'hintFull': hintNext(true); break;
+    case 'hintApply': hintApply(); break;
+    case 'hintClear': S.hint = null; render(); break;
+    case 'generate': generate(S.genLevel); break;
+    case 'autoToggle': setAuto(a.checked); break;
+    case 'showWrongToggle': S.showWrong = a.checked; save(); render(); break;
+    case 'fillCands': fillCands(); break;
+    case 'clearCands': clearCands(); break;
+    case 'check': checkNow(); break;
+    case 'stepSolve': stepSolve(); break;
+    case 'singlesSolve': singlesSolve(); break;
+    case 'solveAll': solveAll(); break;
+    case 'reset': resetPuzzle(); break;
+    case 'copyExport': { const s = document.getElementById('exportStr').value; (navigator.clipboard ? navigator.clipboard.writeText(s) : Promise.reject()).then(() => status('In die Zwischenablage kopiert.', 'ok')).catch(() => { document.getElementById('exportStr').select(); status('Bitte manuell kopieren (Ctrl+C).', 'warn'); }); break; }
+    case 'enterEmpty': enterMode(false); break;
+    case 'enterCurrent': enterMode(true); break;
+    case 'importText': importText(); break;
+    case 'clearEnter': if (S.mode === 'enter'){ pushHistory(); S.vals.fill(0); S.givens.fill(0); afterChange(); } break;
+    case 'validate': if (S.mode !== 'enter'){ status('Zuerst den Eingabemodus starten.', 'warn'); } else validatePuzzle(); break;
+    case 'adopt': adoptPuzzle(); break;
+    case 'cancelEnter': cancelEnter(); break;
+    case 'trainerToggle': S.trainer.on ? trainerStop() : trainerStart(); break;
+    case 'tYes': trainerAnswer(true); break;
+    case 'tNo': trainerAnswer(false); break;
+    case 'tShow': trainerReveal(); break;
+    case 'tHow': S.trainer.showHow = !S.trainer.showHow; render(); break;
+    case 'tSkip': trainerSkip(); break;
+    case 'tApply': trainerApply(); break;
+    case 'tBack': S.trainer.phase = 'ask'; S.trainer.step = null; S.hint = null; trainerMsg('', 'info'); render(); break;
+  }
+});
+document.addEventListener('keydown', e => {
+  const tag = (e.target.tagName || '').toLowerCase(); if (tag === 'textarea' || tag === 'input') return;
+  if (e.ctrlKey || e.metaKey){ if (e.key.toLowerCase() === 'z'){ e.preventDefault(); e.shiftKey ? redo() : undo(); } else if (e.key.toLowerCase() === 'y'){ e.preventDefault(); redo(); } return; }
+  if (e.key >= '1' && e.key <= '9'){ e.preventDefault(); const d = +e.key; if (e.shiftKey && S.sel >= 0 && S.mode === 'play') toggleCand(S.sel, d); else enterDigit(d); return; }
+  if (e.code && /^Digit[1-9]$/.test(e.code) && e.shiftKey && S.sel >= 0 && S.mode === 'play'){ e.preventDefault(); toggleCand(S.sel, +e.code.slice(5)); return; }
+  switch (e.key){
+    case '0': case 'Delete': case 'Backspace': e.preventDefault(); enterDigit(0); break;
+    case 'ArrowUp': e.preventDefault(); move(-9); break;
+    case 'ArrowDown': e.preventDefault(); move(9); break;
+    case 'ArrowLeft': e.preventDefault(); move(-1); break;
+    case 'ArrowRight': e.preventDefault(); move(1); break;
+    case 'n': case 'N': S.pencil = !S.pencil; render(); break;
+    case 'h': case 'H': hintNext(false); break;
+    case 'Escape': S.sel = -1; S.hint = null; S.hlDigit = 0; render(); break;
+  }
+});
+function move(delta){
+  if (S.sel < 0){ S.sel = 0; render(); return; }
+  let n = S.sel + delta;
+  if (delta === -1 && colOf(S.sel) === 0) n = S.sel + 8; if (delta === 1 && colOf(S.sel) === 8) n = S.sel - 8;
+  if (n < 0) n += 81; if (n > 80) n -= 81;
+  S.sel = n; render();
+}
+setInterval(() => { if (S.mode === 'play' && !S.done && document.visibilityState === 'visible' && S.vals.some(v => v)){ S.elapsed++; document.getElementById('timer').textContent = fmtTime(S.elapsed); if (S.elapsed % 15 === 0) save(); } }, 1000);
+
+/* =====================================================================
+   Start
+   ===================================================================== */
+buildGrid();
+if (!load()){
+  // Startsudoku ohne Wartezeit: bekanntes Beispiel, danach kann beliebig erzeugt werden
+  const start = parseGrid('53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79');
+  const r = solveFast(start, 2);
+  startPuzzle(start, r.solution, rateLevel(start, r.solution, 6).level);
+  status('Willkommen! Erzeuge ein neues Sudoku oder löse das Beispiel.');
+} else {
+  render(); status(S.mode === 'enter' ? 'Eingabemodus wiederhergestellt.' : 'Spielstand wiederhergestellt.');
+}
+</script>
+</body>
+</html>
