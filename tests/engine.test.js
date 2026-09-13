@@ -4,9 +4,10 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const E = require('./load-engine');
 
-const WIKI = '53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79';
-const INKALA = '8..........36......7..9.2...5...7.......457.....1...3...1....68..85...1..9....4..';
-const XWING = '1.....569492.561.8.561.924...964.8.1.64.1....218.356.4.4.5...169.5.614.2621.....5';
+/* Referenz-Sudokus, mit der eigenen Engine erzeugt (keine Fremdquellen). */
+const EASY = '...841.72.1.....46.3......9..3..8..41...7...36..3..5..3......6.45.....8.78.126...';   // Stufe 1, identisch mit dem Startsudoku der App
+const XWING = '...6..45.....549.3...1.3.6.42....1....12.83....6....78.9.4.5...2.487.....65..9...';  // Stufe 4, Lösungsweg enthält einen X-Wing
+const HARD = '.413...5..8.......2...15..4.1.6.28.5.2.....3.8.41.3.2.5..96...3.......9..9...851.';   // Stufe 6
 
 /* Löst ein Sudoku mit dem logischen Löser und prüft jeden Schritt gegen die Lösung. */
 function solveLogically(puzzle, solution) {
@@ -28,26 +29,26 @@ function solveLogically(puzzle, solution) {
 function mask(...ds) { let m = 0; for (const d of ds) m |= E.bit(d); return m; }
 
 test('parseGrid und gridToString', () => {
-  const g = E.parseGrid(WIKI);
+  const g = E.parseGrid(EASY);
   assert.equal(g.length, 81);
-  assert.equal(E.gridToString(g), WIKI);
-  assert.equal(E.parseGrid(WIKI.replace(/\./g, '0')).join(''), g.join(''));
-  assert.equal(E.parseGrid('53..7\n....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79').join(''), g.join(''), 'Zeilenumbrüche werden ignoriert');
-  assert.equal(E.parseGrid(WIKI.slice(1)), null, 'zu kurz');
+  assert.equal(E.gridToString(g), EASY);
+  assert.equal(E.parseGrid(EASY.replace(/\./g, '0')).join(''), g.join(''));
+  assert.equal(E.parseGrid(EASY.slice(0, 5) + '\n' + EASY.slice(5)).join(''), g.join(''), 'Zeilenumbrüche werden ignoriert');
+  assert.equal(E.parseGrid(EASY.slice(1)), null, 'zu kurz');
 });
 
 test('findConflicts erkennt doppelte Ziffern', () => {
-  const g = E.parseGrid(WIKI);
+  const g = E.parseGrid(EASY);
   assert.equal(E.findConflicts(g).cells.size, 0);
-  g[1] = 5; // zweite 5 in Zeile 1 (Z1S1 ist 5)
+  const dup = g[3]; g[0] = dup; // Ziffer aus Z1S4 zusätzlich in Z1S1
   const c = E.findConflicts(g);
-  assert.ok(c.cells.has(0) && c.cells.has(1));
-  assert.equal(c.details[0].digit, 5);
+  assert.ok(c.cells.has(0) && c.cells.has(3));
+  assert.equal(c.details[0].digit, dup);
 });
 
 test('solveFast: eindeutig, widersprüchlich, mehrdeutig', () => {
-  assert.equal(E.solveFast(E.parseGrid(WIKI), 2).count, 1);
-  const bad = E.parseGrid(WIKI); bad[1] = 5;
+  assert.equal(E.solveFast(E.parseGrid(EASY), 2).count, 1);
+  const bad = E.parseGrid(EASY); bad[0] = bad[3];
   assert.equal(E.solveFast(bad, 2).count, 0);
   assert.equal(E.solveFast(new Uint8Array(81), 2).count, 2, 'leeres Raster hat mehrere Lösungen');
   const full = E.generateFullGrid();
@@ -56,25 +57,25 @@ test('solveFast: eindeutig, widersprüchlich, mehrdeutig', () => {
 });
 
 test('bekannte Sudokus werden richtig bewertet', () => {
-  const wiki = E.parseGrid(WIKI); const ws = E.solveFast(wiki, 2).solution;
-  assert.equal(E.rateLevel(wiki, ws, 6).level, 1, 'Wikipedia-Beispiel: nur nackte Einer');
+  const easy = E.parseGrid(EASY); const ws = E.solveFast(easy, 2).solution;
+  assert.equal(E.rateLevel(easy, ws, 6).level, 1, 'Referenz Stufe 1: nur nackte Einer');
 
   const xw = E.parseGrid(XWING); const xs = E.solveFast(xw, 2).solution;
   const rx = E.rateLevel(xw, xs, 6);
-  assert.equal(rx.level, 4, 'X-Wing-Beispiel ist Stufe 4');
+  assert.equal(rx.level, 4, 'Referenz Stufe 4');
   assert.ok(rx.used.xWing >= 1, 'X-Wing wird benutzt');
 
-  const ink = E.parseGrid(INKALA); const is = E.solveFast(ink, 2).solution;
-  const ri = E.rateLevel(ink, is, 6);
-  assert.equal(ri.level, 6, 'Inkala-Sudoku braucht Versuch und Irrtum');
+  const hard = E.parseGrid(HARD); const is = E.solveFast(hard, 2).solution;
+  const ri = E.rateLevel(hard, is, 6);
+  assert.equal(ri.level, 6, 'Referenz Stufe 6 braucht Versuch und Irrtum');
   assert.ok(ri.used.bifurcation >= 1);
 });
 
 test('rateLevel bricht bei Überschreiten der Zielstufe ab', () => {
-  const ink = E.parseGrid(INKALA); const is = E.solveFast(ink, 2).solution;
-  assert.equal(E.rateLevel(ink, is, 3).exceeded, true);
-  const wiki = E.parseGrid(WIKI); const ws = E.solveFast(wiki, 2).solution;
-  assert.equal(E.rateLevel(wiki, ws, 1).exceeded, false);
+  const hard = E.parseGrid(HARD); const is = E.solveFast(hard, 2).solution;
+  assert.equal(E.rateLevel(hard, is, 3).exceeded, true);
+  const easy = E.parseGrid(EASY); const ws = E.solveFast(easy, 2).solution;
+  assert.equal(E.rateLevel(easy, ws, 1).exceeded, false);
 });
 
 test('Soundness: alle Schritte stimmen mit der Lösung überein (zufällige Sudokus)', () => {
@@ -102,8 +103,8 @@ test('jeder Schritt liefert Erklärtexte und Zellen', () => {
 });
 
 test('Bifurkation erklärt die Annahme', () => {
-  const ink = E.parseGrid(INKALA); const is = E.solveFast(ink, 2).solution;
-  const st = solveLogically(ink, is).steps.find(s => s.tech === 'bifurcation');
+  const hard = E.parseGrid(HARD); const is = E.solveFast(hard, 2).solution;
+  const st = solveLogically(hard, is).steps.find(s => s.tech === 'bifurcation');
   assert.ok(st);
   assert.match(st.explain, /Angenommen/);
   assert.equal(st.eliminations.length, 1);

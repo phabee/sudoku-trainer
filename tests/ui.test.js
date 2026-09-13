@@ -18,12 +18,13 @@ const key = (k, opts = {}) => d.dispatchEvent(new w.KeyboardEvent('keydown', Obj
 const act = name => { const el = d.querySelector(`[data-act="${name}"]`); assert.ok(el, `Element data-act=${name} vorhanden`); el.click(); };
 const cell = i => d.querySelectorAll('#grid .cell')[i];
 const text = id => d.getElementById(id).textContent;
-const WIKI = '53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79';
+const EASY = '...841.72.1.....46.3......9..3..8..41...7...36..3..5..3......6.45.....8.78.126...'; // Referenz Stufe 1, mit der eigenen Engine erzeugt (identisch mit dem Startsudoku)
+const EASY_GIVENS = EASY.replace(/[^1-9]/g, '').length;
 
 test('Seite lädt mit Startsudoku', async () => {
   await new Promise(r => setTimeout(r, 30));
   assert.equal(d.querySelectorAll('#grid .cell').length, 81);
-  assert.equal(g('S.givens').filter(x => x).length, 30);
+  assert.equal(g('S.givens').filter(x => x).length, EASY_GIVENS);
   assert.equal(g('S.level'), 1);
   assert.equal(d.title, 'Sudoku-Trainer');
 });
@@ -94,8 +95,8 @@ test('Nächster Schritt, alle Einer, Lösung erkannt', () => {
 
 test('Eingabemodus: importieren, validieren, übernehmen', () => {
   act('enterEmpty'); assert.equal(g('S.mode'), 'enter');
-  d.getElementById('importText').value = WIKI; act('importText');
-  assert.equal(g('S.vals').filter(x => x).length, 30);
+  d.getElementById('importText').value = EASY; act('importText');
+  assert.equal(g('S.vals').filter(x => x).length, EASY_GIVENS);
   act('validate'); assert.match(text('validateBox'), /Gültig: genau eine Lösung/);
   // Änderung nach Prüfung verwirft das Ergebnis
   const empty = [...Array(81).keys()].find(i => !g('S.vals')[i]);
@@ -108,12 +109,12 @@ test('Eingabemodus: importieren, validieren, übernehmen', () => {
 
 test('Eingabemodus: Widerspruch und Abbruch', () => {
   act('enterEmpty');
-  d.getElementById('importText').value = '55' + WIKI.slice(2); act('importText'); act('validate');
+  d.getElementById('importText').value = '8' + EASY.slice(1); act('importText'); act('validate');
   assert.match(text('validateBox'), /Widerspr/); assert.match(text('validateBox'), /Ungültig/);
   d.getElementById('importText').value = '.'.repeat(81); act('importText'); act('validate');
   assert.match(text('validateBox'), /mindestens 17/);
   act('cancelEnter'); assert.equal(g('S.mode'), 'play');
-  assert.equal(g('S.givens').filter(x => x).length, 30, 'vorheriges Spiel wiederhergestellt');
+  assert.equal(g('S.givens').filter(x => x).length, EASY_GIVENS, 'vorheriges Spiel wiederhergestellt');
 });
 
 test('Trainer: Nein/Ja, Zelle, falsche und richtige Ziffer, Leiter zurück auf Regel 1', () => {

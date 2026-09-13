@@ -225,7 +225,7 @@ footer{padding:.6rem 1rem;color:var(--muted);font-size:.75rem;text-align:center}
           <button data-act="enterEmpty">Leeres Raster eingeben</button>
           <button data-act="enterCurrent">Aktuelles Sudoku bearbeiten</button>
         </div>
-        <textarea id="importText" rows="4" placeholder="z. B. 53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79"></textarea>
+        <textarea id="importText" rows="4" placeholder="z. B. ...841.72.1.....46.3......9..3..8..41...7...36..3..5..3......6.45.....8.78.126..."></textarea>
         <div class="row">
           <button data-act="importText">Text übernehmen</button>
           <button data-act="clearEnter">Raster leeren</button>
@@ -1400,8 +1400,8 @@ setInterval(() => { if (S.mode === 'play' && !S.done && document.visibilityState
    ===================================================================== */
 buildGrid();
 if (!load()){
-  // Startsudoku ohne Wartezeit: bekanntes Beispiel, danach kann beliebig erzeugt werden
-  const start = parseGrid('53..7....6..195....98....6.8...6...34..8.3..17...2...6.6....28....419..5....8..79');
+  // Startsudoku ohne Wartezeit: mit der eigenen Engine erzeugtes Referenzrätsel (Stufe 1)
+  const start = parseGrid('...841.72.1.....46.3......9..3..8..41...7...36..3..5..3......6.45.....8.78.126...');
   const r = solveFast(start, 2);
   startPuzzle(start, r.solution, rateLevel(start, r.solution, 6).level);
   status('Willkommen! Erzeuge ein neues Sudoku oder löse das Beispiel.');
