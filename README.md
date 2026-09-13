@@ -53,6 +53,10 @@ Alles liegt in `index.html`:
 
 Die Engine lässt sich isoliert in Node testen, indem man den Abschnitt zwischen den Markern extrahiert und lädt. So wurde die Korrektheit aller Techniken gegen bekannte Lösungen über mehr als 20 000 Lösungsschritte geprüft.
 
+## Entwicklung
+
+Es gibt keinen Build-Schritt. `index.html` ist Quellcode und fertige App zugleich: HTML, CSS und JavaScript stehen direkt in der Datei, ohne Bundler, Transpiler, Minifizierung oder Laufzeitabhängigkeiten. Zum Entwickeln die Datei im Editor ändern und die Seite im Browser neu laden. Node wird nur für die Tests im Ordner `tests/` gebraucht, nicht zum Ausführen der App.
+
 ## Tests und Dokumentation
 
 Die Engine wird von den Tests direkt aus `index.html` geladen, es gibt keine Kopie des Quellcodes.
